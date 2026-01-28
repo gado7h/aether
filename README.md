@@ -12,13 +12,18 @@ Execute Luau tests on Roblox Cloud with ease.
 
 ## Installation
 
-### From Tooling Managers (Foreman, Aftman, Rokit)
+### From Tooling Managers
 
-Add this to your configuration file (e.g., `foreman.toml`, `aftman.toml`, `rokit.toml`):
-
+**Foreman / Aftman (`foreman.toml`, `aftman.toml`):**
 ```toml
 [tools]
 roblox-test-runner = { source = "gado7h/roblox-test-runner", version = "1.0.0" }
+```
+
+**Rokit (`rokit.toml`):**
+```toml
+[tools]
+roblox-test-runner = "gado7h/roblox-test-runner@1.0.0"
 ```
 
 ### As a Standalone Package

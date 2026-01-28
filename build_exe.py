@@ -23,6 +23,7 @@ PyInstaller.__main__.run([
     '--name=roblox-test-runner',
     '--onefile',
     '--clean',
+    '--paths=src',  # Tell PyInstaller where to look for modules
     '--hidden-import=roblox_test_runner',
     '--hidden-import=roblox_test_runner.cli',
     f'--add-data=src/vendor{separator}roblox_test_runner/vendor',  # Include vendored files
