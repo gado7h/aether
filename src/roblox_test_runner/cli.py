@@ -90,7 +90,43 @@ def create_parser():
         help="Place ID"
     )
     
+    # --- init command ---
+    subparsers.add_parser("init", help="Create default configuration file")
+
     return parser
+
+
+def cmd_init(args):
+    """Handle init command"""
+    config_path = Path("roblox-test-runner.toml")
+    if config_path.exists():
+        print("[ERROR] roblox-test-runner.toml already exists")
+        return 1
+    
+    default_config = """# Roblox Test Runner Configuration
+
+[runner]
+# Timeout for each test in seconds
+timeout = 60
+# How often to check for file changes in watch mode (seconds)
+watch_interval = 1.0
+# Folder containing your test files
+tests_folder = "tests"
+
+[project]
+# Path to your Rojo project file
+rojo_project = "default.project.json"
+
+[auth]
+# Optional: Set your Universe and Place IDs here
+# universe_id = "..."
+# place_id = "..."
+"""
+    with open(config_path, "w", encoding="utf-8") as f:
+        f.write(default_config)
+    
+    print("✅ Created roblox-test-runner.toml")
+    return 0
 
 
 def cmd_config(args):
@@ -302,6 +338,8 @@ def main():
         sys.exit(cmd_auth(args))
     elif args.command == "set-api":
         sys.exit(cmd_set_api(args))
+    elif args.command == "init":
+        sys.exit(cmd_init(args))
     elif args.command == "run":
         sys.exit(cmd_run(args))
     else:
