@@ -10,6 +10,11 @@ if Path("build").exists():
 # We need a small entry script for PyInstaller
 entry_point = Path("build_entry.py")
 with open(entry_point, "w") as f:
+    f.write("import sys\n")
+    f.write("import os\n")
+    # If running as bundled exe, add _MEIPASS to path where our libs are
+    f.write("if getattr(sys, 'frozen', False):\n")
+    f.write("    sys.path.append(os.path.join(sys._MEIPASS, 'src'))\n")
     f.write("from roblox_test_runner.cli import main\n")
     f.write("if __name__ == '__main__':\n")
     f.write("    main()\n")
