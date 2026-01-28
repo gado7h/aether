@@ -9,7 +9,7 @@ from .bundler import get_testez_driver
 from .config import get_api_url
 
 
-def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT):
+def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verbose=False):
     """Execute a single test file on Roblox Cloud"""
     print(f"\n[Running Test: {test_file.name}]")
     start_time = time.time()
@@ -55,7 +55,7 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT):
                 return False
             
             if state == "COMPLETE":
-                if "logs" in data:
+                if "logs" in data and verbose:
                     print("\n[LOGS]")
                     for l in data["logs"]:
                         print(f"  > {l['message']}")
@@ -93,8 +93,9 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT):
                         print(f"\"{name}\": {status_str}")
                         
                         if res_status == "Failure" and "errors" in r:
-                            for e in r["errors"]:
-                                print(f"{RED}  Error: {e}{RESET}")
+                            if verbose:
+                                for e in r["errors"]:
+                                    print(f"{RED}  Error: {e}{RESET}")
                              
                 elif output.get("status") == "Success" and not has_failure:
                     print(f"\n[SUCCESS] Test Suite Passed")
@@ -157,7 +158,7 @@ def run_test_suite(args, files, bundle, tests_dir, config):
     for f in files:
         # Resolve timeout: args.timeout (CLI) > config["timeout"] > DEFAULT_TIMEOUT
         to = args.timeout or config.get("timeout") or DEFAULT_TIMEOUT
-        success = run_test(f, bundle, tests_dir, config, timeout=to)
+        success = run_test(f, bundle, tests_dir, config, timeout=to, verbose=args.verbose)
         result = {"name": f.stem, "passed": success, "file": str(f)}
         results.append(result)
         if success:
