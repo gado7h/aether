@@ -25,7 +25,7 @@ print(f"Setting up workspace at {WORKSPACE}...")
 shutil.copytree("src", PKG_DIR)
 
 # 3. Create Entry Point inside workspace
-entry_point = WORKSPACE / "run_build.py"
+entry_point = WORKSPACE / "build_entry.py"
 with open(entry_point, "w") as f:
     f.write("from roblox_test_runner.cli import main\n")
     f.write("if __name__ == '__main__':\n")
@@ -44,6 +44,10 @@ try:
         f'--paths={str(WORKSPACE.resolve())}', 
         '--hidden-import=roblox_test_runner',
         '--hidden-import=roblox_test_runner.cli',
+        '--hidden-import=roblox_test_runner.config',
+        '--hidden-import=roblox_test_runner.bundler',
+        '--hidden-import=roblox_test_runner.runner',
+        '--hidden-import=roblox_test_runner.utils',
         # Data: Include the vendor folder from the workspace copy
         f'--add-data={str(PKG_DIR / "vendor")}{separator}roblox_test_runner/vendor',
     ])
