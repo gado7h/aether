@@ -3,12 +3,16 @@ Roblox Test Runner - Script bundler for Roblox Cloud execution
 """
 from pathlib import Path
 
+import sys
+import os
+
 # Get the package's testez directory
-# In the mapped layout, bundler.py is in src/, so parent is root. 
-# BUT at runtime, it thinks it is in roblox_test_runner package.
-# __file__ will be .../site-packages/roblox_test_runner/bundler.py
-# So parent is still the package dir.
-PACKAGE_DIR = Path(__file__).parent
+# Support PyInstaller's _MEIPASS for bundled data
+if hasattr(sys, '_MEIPASS'):
+    PACKAGE_DIR = Path(sys._MEIPASS) / "roblox_test_runner"
+else:
+    PACKAGE_DIR = Path(__file__).parent
+
 TESTEZ_DIR = PACKAGE_DIR / "vendor" / "testez"
 
 

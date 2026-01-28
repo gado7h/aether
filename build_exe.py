@@ -20,6 +20,10 @@ for path in [Path("build"), Path("dist")]:
 print(f"Creating launcher at {LAUNCHER}...")
 with open(LAUNCHER, "w") as f:
     f.write("import sys\n")
+    f.write("import os\n")
+    # Add _MEIPASS support for PyInstaller bundles
+    f.write("if hasattr(sys, '_MEIPASS'):\n")
+    f.write("    sys.path.insert(0, sys._MEIPASS)\n")
     f.write("from roblox_test_runner.cli import main\n")
     f.write("if __name__ == '__main__':\n")
     f.write("    main()\n")
