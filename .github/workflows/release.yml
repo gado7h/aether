@@ -49,6 +49,7 @@ jobs:
       # Publish to PyPI (Only on Linux)
       - name: Publish to PyPI
         if: matrix.os == 'ubuntu-latest'
+        continue-on-error: true
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
