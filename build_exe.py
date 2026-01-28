@@ -14,13 +14,16 @@ with open(entry_point, "w") as f:
     f.write("if __name__ == '__main__':\n")
     f.write("    main()\n")
 
+import os
+
 # Run PyInstaller
+separator = os.pathsep
 PyInstaller.__main__.run([
     str(entry_point),
     '--name=roblox-test-runner',
     '--onefile',
     '--clean',
-    '--add-data=src/vendor;roblox_test_runner/vendor',  # Include vendored files
+    f'--add-data=src/vendor{separator}roblox_test_runner/vendor',  # Include vendored files
 ])
 
 # Cleanup
