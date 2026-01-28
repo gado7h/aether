@@ -256,6 +256,8 @@ end
         # (This is a simplification; ideally use sourcemap 'className' if available)
         fname = path.name
         class_name = "ModuleScript"
+        is_json = fname.lower().endswith(".json")
+        
         if fname.endswith(".server.luau") or fname.endswith(".server.lua"):
              class_name = "Script"
         elif fname.endswith(".client.luau") or fname.endswith(".client.lua"):
@@ -264,6 +266,22 @@ end
         try:
             with open(path, "r", encoding="utf-8") as f:
                 content = f.read()
+            
+            if is_json:
+                # Wrap JSON content in JSONDecode to return as a table (ModuleScript behavior)
+                # Find safe Lua string delimiter
+                level = 0
+                while True:
+                    eq = "=" * level
+                    close_seq = f"]{eq}]"
+                    if close_seq not in content:
+                        start_delim = f"[{eq}["
+                        end_delim = close_seq
+                        break
+                    level += 1
+                
+                content = f"return game:GetService('HttpService'):JSONDecode({start_delim}{content}{end_delim})"
+
         except Exception as e:
             print(f"Skipping {path}: {e}")
             continue
@@ -491,7 +509,7 @@ local results = TestRunner.runPlan(plan)
 local function collectResults(node, list)
     list = list or {}
     
-    if node.planNode and node.planNode.type == "it" then
+    if node.planNode and node.planNode.type == "It" then
         local status = "Unknown"
         if node.status == "Success" then status = "Success" end
         if node.status == "Failure" then status = "Failure" end

@@ -55,6 +55,11 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT):
                 return False
             
             if state == "COMPLETE":
+                if "logs" in data:
+                    print("\n[LOGS]")
+                    for l in data["logs"]:
+                        print(f"  > {l['message']}")
+
                 elapsed = time.time() - start_time
                 output = data.get("output", {}).get("results", [{}])[0] or data.get("returnValue", {})
                 
@@ -64,15 +69,32 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT):
                 
                 # Display results
                 if "results" in output and output["results"]:
-                    print()
+                    print(f"\n[\"{test_file.stem}\"]:")
+                    
+                    # ANSI colors
+                    GREEN = "\033[92m"
+                    RED = "\033[91m"
+                    YELLOW = "\033[93m"
+                    RESET = "\033[0m"
+
                     for r in output["results"]:
                         name = r.get("name", "Unknown")
                         res_status = r.get("status", "Unknown")
-                        icon = "[PASS]" if res_status == "Success" else "[FAIL]"
-                        print(f"  {icon} {name}")
+                        
+                        if res_status == "Success":
+                            status_str = f"{GREEN}[PASSED]{RESET}"
+                        elif res_status == "Failure":
+                            status_str = f"{RED}[FAILED]{RESET}"
+                        elif res_status == "Skipped":
+                            status_str = f"{YELLOW}[SKIPPED]{RESET}"
+                        else:
+                            status_str = f"[{res_status}]"
+                            
+                        print(f"\"{name}\": {status_str}")
+                        
                         if res_status == "Failure" and "errors" in r:
                             for e in r["errors"]:
-                                print(f"      - {e}")
+                                print(f"{RED}  Error: {e}{RESET}")
                              
                 elif output.get("status") == "Success" and not has_failure:
                     print(f"\n[SUCCESS] Test Suite Passed")
