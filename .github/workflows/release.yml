@@ -16,14 +16,17 @@ jobs:
         include:
           - os: windows-latest
             TARGET: windows
+            ARCH: x86_64
             EXT: .exe
             ASSET_EXT: .zip
           - os: ubuntu-latest
             TARGET: linux
+            ARCH: x86_64
             EXT: ""
             ASSET_EXT: .zip
           - os: macos-latest
             TARGET: macos
+            ARCH: x86_64
             EXT: ""
             ASSET_EXT: .zip
     
@@ -67,11 +70,13 @@ jobs:
         run: |
           # Create Archive
           cd dist
+          ASSET_NAME="roblox-test-runner-${{ matrix.TARGET }}-${{ matrix.ARCH }}${{ matrix.ASSET_EXT }}"
+          
           if [ "${{ matrix.ASSET_EXT }}" == ".zip" ]; then
             if [ "${{ matrix.os }}" == "windows-latest" ]; then
-              7z a ../roblox-test-runner-${{ matrix.TARGET }}${{ matrix.ASSET_EXT }} roblox-test-runner${{ matrix.EXT }}
+              7z a ../$ASSET_NAME roblox-test-runner${{ matrix.EXT }}
             else
-              zip -r ../roblox-test-runner-${{ matrix.TARGET }}${{ matrix.ASSET_EXT }} roblox-test-runner${{ matrix.EXT }}
+              zip -r ../$ASSET_NAME roblox-test-runner${{ matrix.EXT }}
             fi
           fi
 
@@ -79,7 +84,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            roblox-test-runner-${{ matrix.TARGET }}${{ matrix.ASSET_EXT }}
+            roblox-test-runner-${{ matrix.TARGET }}-${{ matrix.ARCH }}${{ matrix.ASSET_EXT }}
             dist/*.whl
             dist/*.tar.gz
         env:
