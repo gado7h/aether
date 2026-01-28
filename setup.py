@@ -11,8 +11,8 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yourusername/roblox-test-runner",
-    packages=["roblox_test_runner"],
-    package_dir={"roblox_test_runner": "src"},
+    packages=find_packages(where="src"),
+    package_dir={"": "src"},
     include_package_data=True,
     package_data={
         "roblox_test_runner": ["vendor/**/*"],
