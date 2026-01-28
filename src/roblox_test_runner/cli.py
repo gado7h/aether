@@ -314,25 +314,29 @@ def main():
     args = parser.parse_args()
     
     # Default to 'run' if no command specified
+    # Default to help if no command specified
     if args.command is None:
-        # Check if first arg looks like a test name
         if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
-            # Treat as "run <test>"
-            args.command = "run"
-            args.test = sys.argv[1]
-            args.list = False
-            args.verbose = False
-            args.json = False
-            args.watch = False
-            args.timeout = None
+             # Heuristic: if valid subcommand not found but arg exists, it might be a typo or legacy
+             # But user requested "make default cli command help"
+             # If I type 'roblox-test-runner', len(sys.argv) is 1.
+             pass
         else:
-            args.command = "run"
-            args.test = "all"
-            args.list = False
-            args.verbose = False
-            args.json = False
-            args.watch = False
-            args.timeout = None
+             parser.print_help()
+             sys.exit(0)
+
+    # Legacy support / fuzzy run: if args.command is still None, check if we want to default to run?
+    # User said: "when I call roblox-test-runner it starts run and I dont want that"
+    # So if no command, show help.
+    
+    if args.command is None:
+         # Check for legacy "roblox-test-runner <testname>" usage?
+         # If user passes `roblox-test-runner mytest`, argparse likely fails if 'mytest' isn't a command.
+         # Actually, argparse handles subcommands. If I type `roblox-test-runner mytest`, it looks for subcommand 'mytest'.
+         # If invalid, it errors.
+         # So we only care about the case where NO arguments are passed.
+         parser.print_help()
+         sys.exit(0)
     
     if args.command == "config":
         sys.exit(cmd_config(args))

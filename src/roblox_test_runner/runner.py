@@ -133,7 +133,9 @@ def run_test_suite(args, files, bundle, tests_dir, config):
     
     # Sequential execution
     for f in files:
-        success = run_test(f, bundle, tests_dir, config, timeout=args.timeout)
+        # Resolve timeout: args.timeout (CLI) > config["timeout"] > DEFAULT_TIMEOUT
+        to = args.timeout or config.get("timeout") or DEFAULT_TIMEOUT
+        success = run_test(f, bundle, tests_dir, config, timeout=to)
         result = {"name": f.stem, "passed": success, "file": str(f)}
         results.append(result)
         if success:
