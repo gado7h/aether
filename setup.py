@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="roblox-test-runner",
-    version="1.0.3",
+    version="1.1.0",
     author="WildLink Team",
     description="Execute Luau tests on Roblox Cloud",
     long_description=long_description,
@@ -27,6 +27,7 @@ setup(
         "requests>=2.31.0",
         "python-dotenv>=1.0.0",
         "watchdog>=3.0.0",
+        "tomli>=2.0.1; python_version < '3.11'",
     ],
     entry_points={
         "console_scripts": [

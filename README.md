@@ -8,9 +8,8 @@ A simple tool to run your Roblox (TestEZ) tests in the cloud. It works with your
 
 To install with [Rokit](https://github.com/rojo-rbx/rokit):
 
-```toml
-[tools]
-roblox-test-runner = "gado7h/roblox-test-runner@latest"
+```bash
+rokit add gado7h/roblox-test-runner
 ```
 
 Or with Pip:
