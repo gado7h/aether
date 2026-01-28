@@ -5,7 +5,7 @@ import sys
 import time
 import argparse
 from pathlib import Path
-from .config import get_config, validate_config, prompt_config, get_api_url
+from .config import get_config, validate_config, get_api_url, save_user_config
 from .bundler import bundle_scripts, bundle_testez
 from .runner import run_test_suite
 
@@ -53,20 +53,21 @@ def create_parser():
     run_parser.add_argument(
         "-t", "--timeout",
         type=int,
-        default=DEFAULT_TIMEOUT,
         metavar="SECONDS",
-        help=f"Timeout per test in seconds (default: {DEFAULT_TIMEOUT})"
+        help=f"Timeout per test in seconds"
     )
     
     # --- config command ---
-    config_parser = subparsers.add_parser("config", help="Configure API credentials")
-    config_parser.add_argument(
-        "--show",
-        action="store_true",
-        help="Show current configuration (API key masked)"
-    )
+    config_parser = subparsers.add_parser("config", help="Show current configuration")
     
-    # --- auth command (for CI/CD) ---
+    # --- set-api command ---
+    set_api_parser = subparsers.add_parser("set-api", help="Save API key to user config")
+    set_api_parser.add_argument(
+        "key",
+        help="Roblox Open Cloud API Key"
+    )
+
+    # --- auth command (legacy/CI) ---
     auth_parser = subparsers.add_parser("auth", help="Authenticate for CI/CD")
     auth_parser.add_argument(
         "--github",
@@ -94,29 +95,33 @@ def create_parser():
 
 def cmd_config(args):
     """Handle config command"""
-    from .config import load_config_file
-    
-    if args.show:
-        config = load_config_file()
-        print("\n=== Current Configuration ===")
-        if config.get("api_key"):
-            masked = "*" * 20 + "..." + config["api_key"][-4:]
-            print(f"API Key: {masked}")
-        else:
-            print("API Key: (not set)")
-        print(f"Universe ID: {config.get('universe_id', '(not set)')}")
-        print(f"Place ID: {config.get('place_id', '(not set)')}")
-        return 0
-    
-    # Interactive setup
-    prompt_config()
+    config = get_config()
+    print("\n=== Current Configuration ===")
+    if config.get("api_key"):
+        masked = "*" * 20 + "..." + config["api_key"][-4:]
+        print(f"API Key: {masked}")
+    else:
+        print("API Key: (not set)")
+    print(f"Universe ID: {config.get('universe_id', '(not set)')}")
+    print(f"Place ID: {config.get('place_id', '(not set)')}")
+    print(f"Tests Folder: {config.get('tests_folder', '(default)')}")
+    print(f"Rojo Project: {config.get('rojo_project', '(default)')}")
+    return 0
+
+
+def cmd_set_api(args):
+    """Handle set-api command"""
+    if not args.key:
+        print("[ERROR] API key required")
+        return 1
+    save_user_config("api_key", args.key)
+    print("✅ API key saved to user configuration")
     return 0
 
 
 def cmd_auth(args):
     """Handle auth command for CI/CD"""
     import os
-    from .config import save_config_file
     
     if args.github:
         # Read from GitHub Actions environment
@@ -140,12 +145,8 @@ def cmd_auth(args):
         return 0
     
     if args.key:
-        config = {
-            "api_key": args.key,
-            "universe_id": args.universe,
-            "place_id": args.place,
-        }
-        save_config_file(config)
+        # Legacy support: use set-api logic
+        save_user_config("api_key", args.key)
         print("✅ Credentials saved")
         return 0
     
@@ -159,20 +160,44 @@ def cmd_run(args):
     
     # Load and validate config
     config = get_config()
+    
+    # Override config with CLI args
+    if args.timeout:
+        config["timeout"] = args.timeout
+    
     missing = validate_config(config)
     
     if missing:
         print("[ERROR] Missing configuration:")
         for m in missing:
             print(f"  - {m}")
-        print("\nRun 'roblox-test-runner config' to set up credentials")
+        print("\nRun 'roblox-test-runner set-api <KEY>' or set environment variables.")
         return 1
     
     paths = get_project_paths()
+    
+    # Use configured tests folder
+    if config.get("tests_folder"):
+        custom_tests = paths["root"] / config["tests_folder"]
+        if custom_tests.exists():
+            paths["tests"] = custom_tests
+            # If default tests folder was different, update it
+        else:
+             # Fallback or strict error? 
+             # Let's warn but check default if custom doesn't exist, 
+             # OR strictly fail. The user asked for "configurable", usually implies strict.
+             print(f"[ERROR] Configured tests path not found: {custom_tests}")
+             return 1
+
     tests_dir = paths["tests"]
     
+    # Check if we have tests
     files = list(tests_dir.glob("*.spec.luau"))
     files = [f for f in files if not f.name.startswith("_")]
+    
+    if not files:
+        print(f"[WARN] No .spec.luau files found in {tests_dir}")
+        return 0
     
     # List mode
     if args.list:
@@ -199,14 +224,17 @@ def cmd_run(args):
             def on_modified(self, event):
                 if event.is_directory:
                     return
-                if event.src_path.endswith(('.luau', '.lua')):
-                    if time.time() - self.last_run < 1:
+                # Watch both lua files and TOML config
+                if event.src_path.endswith(('.luau', '.lua', '.toml', '.json')):
+                    if time.time() - self.last_run < config["watch_interval"]:
                         return
                     self.last_run = time.time()
                     print(f"\n[WATCH] Detected change: {event.src_path}")
                     self.callback()
         
         def run_tests_for_watch():
+            # Reload config on change? For now, just re-run with existing args but fresh bundle
+            # Ideally we reload config, but that's complex without restarting loop.
             testez_bundle = bundle_testez()
             scripts_bundle = bundle_scripts(paths)
             bundle = testez_bundle + "\n" + scripts_bundle
@@ -216,9 +244,12 @@ def cmd_run(args):
         handler = ChangeHandler(run_tests_for_watch)
         observer.schedule(handler, str(paths["src"]), recursive=True)
         observer.schedule(handler, str(tests_dir), recursive=True)
+        # Also watch project root for config files?
+        observer.schedule(handler, str(paths["root"]), recursive=False)
+        
         observer.start()
         
-        print(f"[WATCH] Monitoring {paths['src']} and {tests_dir} for changes...")
+        print(f"[WATCH] Monitoring for changes...")
         print("Press Ctrl+C to stop")
         
         # Initial run
@@ -255,7 +286,7 @@ def main():
             args.verbose = False
             args.json = False
             args.watch = False
-            args.timeout = DEFAULT_TIMEOUT
+            args.timeout = None
         else:
             args.command = "run"
             args.test = "all"
@@ -263,12 +294,14 @@ def main():
             args.verbose = False
             args.json = False
             args.watch = False
-            args.timeout = DEFAULT_TIMEOUT
+            args.timeout = None
     
     if args.command == "config":
         sys.exit(cmd_config(args))
     elif args.command == "auth":
         sys.exit(cmd_auth(args))
+    elif args.command == "set-api":
+        sys.exit(cmd_set_api(args))
     elif args.command == "run":
         sys.exit(cmd_run(args))
     else:
