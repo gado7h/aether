@@ -1,109 +1,118 @@
 # Roblox Test Runner
 
-Execute Luau tests on Roblox Cloud with ease.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Rokit](https://img.shields.io/badge/rokit-compatible-green.svg)](https://github.com/rojo-rbx/rokit)
 
-## Features
+**Next-generation test runner for Roblox.** Execute TestEZ test suites directly on Roblox Cloud with ease, locally or in CI/CD pipelines.
 
-- ✅ Execute TestEZ tests on Roblox Cloud
-- ✅ Watch mode for automatic re-running
-- ✅ JSON output for CI/CD integration
-- ✅ Customizable timeouts
-- ✅ Clean, modular codebase
+## ✨ Features
 
-## Installation
+*   🚀 **Cloud Execution**: Run tests in a real Roblox environment via Open Cloud.
+*   🔄 **Rojo Integration**: Seamlessly maps your project files using `sourcemap.json` or `default.project.json`.
+*   ⚙️ **Flexible Configuration**: Use `roblox-test-runner.toml` (per-project or global) for easy setup.
+*   👀 **Watch Mode**: Automatically re-run tests on file changes.
+*   📊 **CI/CD Ready**: Supports JSON output for automated pipelines.
 
-### From Tooling Managers
+## 📦 Installation
 
-**Foreman / Aftman (`foreman.toml`, `aftman.toml`):**
+### Using Rokit (Recommended)
+
+Add to your `rokit.toml`:
 ```toml
 [tools]
-roblox-test-runner = { source = "gado7h/roblox-test-runner", version = "1.0.0" }
+roblox-test-runner = "gado7h/roblox-test-runner@latest"
 ```
 
-**Rokit (`rokit.toml`):**
-```toml
-[tools]
-roblox-test-runner = "gado7h/roblox-test-runner@1.0.0"
-```
-
-### As a Standalone Package
+### From PyPI
 
 ```bash
 pip install roblox-test-runner
 ```
 
-### From Source
+## 🛠️ Configuration
+
+Configuration is loaded hierarchically from:
+1.  **CLI Arguments** (highest priority)
+2.  **`roblox-test-runner.toml`** (current directory, then parent directories)
+3.  **User Config** (`~/.config/roblox-test-runner/config.toml`)
+4.  **Environment Variables**
+
+### 1. set-api Command (Secure)
+To store your API key securely in your user configuration:
 
 ```bash
-git clone https://github.com/yourusername/roblox-test-runner.git
-cd roblox-test-runner
-pip install -e .
+roblox-test-runner set-api <YOUR_API_KEY>
 ```
 
-## Usage
+### 2. Project Configuration (`roblox-test-runner.toml`)
+Create this file in your project root to share settings with your team:
 
-### Configuration (Required)
+```toml
+[runner]
+timeout = 60            # Test timeout in seconds
+watch_interval = 1.0    # Poll interval for watch mode (seconds)
+tests_folder = "tests"  # Directory containing .spec.luau files
 
-You must configure your API credentials. You can do this via environment variables or the config command.
+[project]
+rojo_project = "default.project.json" # Path to your Rojo project file
 
-**Method 1: Interactive Config**
+[auth]
+# Optional: Define Universe/Place IDs here
+universe_id = "9635698060"
+place_id = "131722995820694"
+```
+
+### 3. Environment Variables (CI/CD)
+For GitHub Actions or other CI environments:
+*   `ROBLOX_API_KEY`
+*   `UNIVERSE_ID`
+*   `PLACE_ID`
+
+## 📂 Project Structure
+
+The runner supports **any project structure** defined by your Rojo project (`default.project.json`).
+
+By default, it looks for tests in the `tests/` folder. You can customize this in `roblox-test-runner.toml`.
+
+**Example:**
+```
+my-game/
+├── default.project.json  # Rojo project definition
+├── roblox-test-runner.toml
+├── src/
+│   ├── modules/
+│   └── server/
+└── tests/
+    └── player_data.spec.luau
+```
+
+## 🚀 Usage
+
+### Run all tests
 ```bash
-roblox-test-runner config
+roblox-test-runner run
 ```
 
-**Method 2: Environment Variables**
-Create a `.env` file or set these variables:
-```env
-ROBLOX_API_KEY=your_api_key_here
-UNIVERSE_ID=9635698060
-PLACE_ID=131722995820694
-```
-
-Get your API key from [Roblox Creator Dashboard](https://create.roblox.com/credentials).
-
-## Project Structure
-
-The test runner expects the following structure:
-
-```
-your-project/
-├── src/              # Luau source files
-│   ├── shared/       → ReplicatedStorage
-│   ├── server/       → ServerScriptService
-│   └── client/       → StarterPlayer
-├── Packages/         # Wally packages
-├── tests/            # Test files (*.spec.luau)
-└── .env              # API credentials
-```
-
-## CLI Reference
-
-```
-usage: roblox-test-runner [-h] [-l] [-v] [-j] [-w] [-t SECONDS] [test]
-
-Options:
-  -l, --list            List all available tests
-  -v, --verbose         Show detailed output
-  -j, --json            Output results as JSON
-  -w, --watch           Watch for changes
-  -t, --timeout SECONDS Custom timeout per test (default: 60)
-```
-
-## Development
-
+### Run specific test (fuzzy match)
 ```bash
-# Install in development mode
-cd tools
-pip install -e .[dev]
-
-# Run tests
-pytest
+roblox-test-runner run player
 ```
 
-## License
+### Watch mode
+```bash
+roblox-test-runner run --watch
+```
 
-MIT License - see LICENSE file for details
+### CI/CD Output
+```bash
+roblox-test-runner run --json
+```
 
-## Contributing
+## 🤝 Contributing
 
-Contributions are welcome! Please open an issue or PR.
+Contributions are welcome! Please open an issue or pull request on GitHub.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

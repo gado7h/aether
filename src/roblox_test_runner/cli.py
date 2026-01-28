@@ -234,9 +234,9 @@ def cmd_run(args):
         
         def run_tests_for_watch():
             # Reload config on change? For now, just re-run with existing args but fresh bundle
-            # Ideally we reload config, but that's complex without restarting loop.
+            # Ideally we reload config, but that's complex
             testez_bundle = bundle_testez()
-            scripts_bundle = bundle_scripts(paths)
+            scripts_bundle = bundle_scripts(paths, config)
             bundle = testez_bundle + "\n" + scripts_bundle
             run_test_suite(args, files, bundle, tests_dir, config)
         
@@ -265,7 +265,7 @@ def cmd_run(args):
     
     # Normal execution
     testez_bundle = bundle_testez()
-    scripts_bundle = bundle_scripts(paths)
+    scripts_bundle = bundle_scripts(paths, config)
     bundle = testez_bundle + "\n" + scripts_bundle
     return run_test_suite(args, files, bundle, tests_dir, config)
 

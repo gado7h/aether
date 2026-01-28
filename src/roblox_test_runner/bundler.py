@@ -197,10 +197,12 @@ def get_roblox_path(file_path, root_dir):
     return None
 
 
-def bundle_scripts(paths):
-    """Bundle all source code and packages into a Lua script"""
+from .rojo_resolver import RojoResolver
+
+def bundle_scripts(paths, config):
+    """Bundle all source code into a Lua script using Rojo sourcemap"""
     bundle = []
-    bundle.append("print('--- Bundling Game Source & Packages ---')")
+    bundle.append("print('--- Bundling Game Source (Rojo) ---')")
     
     # Helper for creating folders
     bundle.append("""
@@ -214,17 +216,136 @@ local function GetOrCreate(parent, name)
 end
 """)
     
+    print("Resolving Rojo sourcemap...")
+    rojo_project = config.get("rojo_project", "default.project.json")
+    resolver = RojoResolver(rojo_project)
+    
+    if not resolver.generate_sourcemap():
+        print(f"[WARN] Could not generate Rojo sourcemap (checked {rojo_project} and sourcemap.json)")
+        print("       Falling back to default file system scan (src/ -> ServerScriptService, etc.)")
+        return bundle_scripts_fallback(paths)
+        
     print("Bundling scripts...")
+    
+    files_to_process = resolver.get_all_scripts()
+    
+    # Sort for deterministic bundle order
+    files_to_process.sort(key=lambda p: str(p))
+    
+    for path in files_to_process:
+        # Get (Service, [Folders], ScriptName, ClassName) implies we need ClassName in resolver?
+        # Resolver currently returns list of path components [Service, Folder, Script]
+        # We need to infer class name from extension or filename still?
+        # The sourcemap JSON has "className". RojoResolver should ideally return it.
+        # But _build_mappings in RojoResolver didn't store className.
+        # Let's assume RojoResolver needs an update or we infer here.
+        # Infereference from file path extension (.server.luau etc) is standard Rojo behavior.
+        
+        path_components = resolver.get_roblox_path(path)
+        if not path_components:
+            continue
+            
+        service_name = path_components[0]
+        remaining = path_components[1:]
+        
+        # Last component is method (script) name, parents are folders
+        script_name = remaining[-1]
+        folders = remaining[:-1]
+        
+        # Determine class name based on file extension
+        # (This is a simplification; ideally use sourcemap 'className' if available)
+        fname = path.name
+        class_name = "ModuleScript"
+        if fname.endswith(".server.luau") or fname.endswith(".server.lua"):
+             class_name = "Script"
+        elif fname.endswith(".client.luau") or fname.endswith(".client.lua"):
+             class_name = "LocalScript"
+             
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception as e:
+            print(f"Skipping {path}: {e}")
+            continue
+
+        chunk = f"""
+do
+    local current = game:GetService("{service_name}")
+"""
+        for folder in folders:
+            chunk += f'    current = GetOrCreate(current, "{folder}")\n'
+            
+        chunk += f"""
+    local scriptInstance = current:FindFirstChild("{script_name}")
+    if not scriptInstance then
+        scriptInstance = Instance.new("{class_name}")
+        scriptInstance.Name = "{script_name}"
+        scriptInstance.Parent = current
+    end
+    
+    _G.VirtualFiles = _G.VirtualFiles or {{}}
+    _G.VirtualFiles[scriptInstance] = function(...) 
+        local script = scriptInstance 
+        {content}
+    end
+end
+"""
+        bundle.append(chunk)
+
+    # Require shim
+    bundle.append("""
+local _oldRequire = require
+_G.LoadedModules = {}
+
+function require(module)
+    if module == nil then
+        error("REQUIRE_NIL_ERROR: require called with nil")
+    end
+    -- print("REQUIRE CALL: " .. tostring(module))
+    if typeof(module) == "Instance" then
+        if not module:IsA("ModuleScript") then
+             error("REQUIRE_INSTANCE_ERROR: " .. module.ClassName .. " " .. module:GetFullName())
+        end
+        
+        if _G.LoadedModules[module] then
+            return _G.LoadedModules[module]
+        end
+        if _G.VirtualFiles and _G.VirtualFiles[module] then
+             local res = _G.VirtualFiles[module]()
+             _G.LoadedModules[module] = res
+             return res
+        end
+        error("REQUIRE_MISSING_VIRTUAL: " .. module:GetFullName()) 
+    end
+    error("REQUIRE_INVALID_TYPE: " .. typeof(module) .. " " .. tostring(module))
+end
+""")
+    return "\n".join(bundle)
+
+
+def bundle_scripts_fallback(paths):
+    """Legacy bundling logic (fallback)"""
+    bundle = []
+    bundle.append("print('--- Bundling Game Source (Legacy Fallback) ---')")
+    
+    # Helper for creating folders
+    bundle.append("""
+local function GetOrCreate(parent, name)
+    local existing = parent:FindFirstChild(name)
+    if existing then return existing end
+    local folder = Instance.new("Folder")
+    folder.Name = name
+    folder.Parent = parent
+    return folder
+end
+""")
     
     src_files = list(paths["src"].rglob("*.luau"))
     pkg_files = list(paths["packages"].rglob("*.lua")) + list(paths["packages"].rglob("*.luau"))
     files_to_process = src_files + pkg_files
     
     def sort_key(p):
-        # Sort by depth first, then by whether it's an init file (init first), then name
         is_init = p.name in ('init.lua', 'init.luau')
-        # We want init files to come before other files in same directory, content-wise
-        # But also parents before children.
         return (len(p.parts), 0 if is_init else 1, str(p))
     
     files_to_process.sort(key=sort_key)
@@ -239,8 +360,7 @@ end
         try:
             with open(path, "r", encoding="utf-8") as f:
                 content = f.read()
-        except Exception as e:
-            print(f"Skipping {path}: {e}")
+        except:
             continue
 
         chunk = f"""
@@ -267,7 +387,10 @@ end
 """
         bundle.append(chunk)
 
-    # Require shim
+    # Require shim logic repeated or shared...
+    # For brevity, I'll rely on the main bundle_scripts to append the shim if fallback is used?
+    # No, fallback needs to be self-contained or we structure it better.
+    # Let's copy the shim for now to be safe.
     bundle.append("""
 local _oldRequire = require
 _G.LoadedModules = {}
@@ -276,17 +399,11 @@ function require(module)
     if module == nil then
         error("REQUIRE_NIL_ERROR: require called with nil")
     end
-    print("REQUIRE CALL: " .. tostring(module))
     if typeof(module) == "Instance" then
-        print("  Type: Instance (" .. module.ClassName .. ") FullName: " .. module:GetFullName())
         if not module:IsA("ModuleScript") then
-             -- print("  [ERROR] Require called on non-ModuleScript: " .. module.ClassName)
              error("REQUIRE_INSTANCE_ERROR: " .. module.ClassName .. " " .. module:GetFullName())
         end
-        
-        if _G.LoadedModules[module] then
-            return _G.LoadedModules[module]
-        end
+        if _G.LoadedModules[module] then return _G.LoadedModules[module] end
         if _G.VirtualFiles and _G.VirtualFiles[module] then
              local res = _G.VirtualFiles[module]()
              _G.LoadedModules[module] = res
