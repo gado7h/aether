@@ -3,48 +3,52 @@ from pathlib import Path
 import shutil
 import os
 
-# 1. Setup temporary build environment to mirror package structure
-# This fixes "ModuleNotFoundError: No module named 'roblox_test_runner'"
-# by creating a literal 'roblox_test_runner' folder containing src files.
-TEMP_DIR = Path("temp_build_env")
-PKG_DIR = TEMP_DIR / "roblox_test_runner"
+# Strategy: Create a clean "build_workspace" that looks like a standard python project
+# build_workspace/
+#   run_build.py
+#   roblox_test_runner/  (copy of src)
+#     __init__.py
+#     cli.py
+#     ...
 
-# Clean previous build artifacts
+WORKSPACE = Path("build_workspace")
+PKG_DIR = WORKSPACE / "roblox_test_runner"
+
+# 1. Clean previous
 if Path("build").exists(): shutil.rmtree("build")
 if Path("dist").exists(): shutil.rmtree("dist")
-if TEMP_DIR.exists(): shutil.rmtree(TEMP_DIR)
+if WORKSPACE.exists(): shutil.rmtree(WORKSPACE)
 
-# Copy src contents to temp_build_env/roblox_test_runner
-print(f"Creating temporary package structure in {PKG_DIR}...")
+# 2. Setup Workspace
+WORKSPACE.mkdir()
+print(f"Setting up workspace at {WORKSPACE}...")
 shutil.copytree("src", PKG_DIR)
 
-# 2. Create Entry Point
-entry_point = Path("build_entry.py")
+# 3. Create Entry Point inside workspace
+entry_point = WORKSPACE / "run_build.py"
 with open(entry_point, "w") as f:
     f.write("from roblox_test_runner.cli import main\n")
     f.write("if __name__ == '__main__':\n")
     f.write("    main()\n")
 
-# 3. Run PyInstaller
-separator = os.pathsep
-print("Running PyInstaller...")
+# 4. Run PyInstaller
+# We point to the script INSIDE the workspace
+# We add the workspace to paths so it finds 'roblox_test_runner' package
 try:
+    separator = os.pathsep
     PyInstaller.__main__.run([
         str(entry_point),
         '--name=roblox-test-runner',
         '--onefile',
         '--clean',
-        # Add TEMP_DIR to python path so 'import roblox_test_runner' works
-        f'--paths={str(TEMP_DIR)}', 
-        # Force import of the package and cli
+        f'--paths={str(WORKSPACE.resolve())}', 
         '--hidden-import=roblox_test_runner',
         '--hidden-import=roblox_test_runner.cli',
-        # Include vendor files. Source is in the temp pkg dir. Dest is inside package at runtime.
+        # Data: Include the vendor folder from the workspace copy
         f'--add-data={str(PKG_DIR / "vendor")}{separator}roblox_test_runner/vendor',
     ])
 finally:
-    # 4. Cleanup
-    if entry_point.exists(): entry_point.unlink()
-    if TEMP_DIR.exists(): shutil.rmtree(TEMP_DIR)
+    # Cleanup workspace
+    if WORKSPACE.exists(): shutil.rmtree(WORKSPACE)
 
 print("\nBuild complete. Executable is in dist/")
