@@ -65,9 +65,6 @@ jobs:
       - name: Prepare Asset
         shell: bash
         run: |
-          # Rename binary
-          mv dist/roblox-test-runner${{ matrix.EXT }} dist/roblox-test-runner${{ matrix.EXT }}
-          
           # Create Archive
           cd dist
           if [ "${{ matrix.ASSET_EXT }}" == ".zip" ]; then
