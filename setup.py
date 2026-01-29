@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="roblox-test-runner",
-    version="0.2.6",
+    version="0.3.0",
     author="WildLink Team",
     description="Execute Luau tests on Roblox Cloud",
     long_description=long_description,

@@ -105,7 +105,7 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
                 if "logs" in data and verbose:
                     print("\n[LOGS]")
                     for l in data["logs"]:
-                        print(f"  > {l['message']}")
+                        print(f"  > {resolve_source_map(l['message'], source_map)}")
 
                 elapsed = time.time() - start_time
                 output = data.get("output", {}).get("results", [{}])[0] or data.get("returnValue", {})
