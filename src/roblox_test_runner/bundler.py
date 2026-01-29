@@ -197,15 +197,46 @@ def get_roblox_path(file_path, root_dir):
     return None
 
 
+
 from .rojo_resolver import RojoResolver
 
 def bundle_scripts(paths, config):
     """Bundle all source code into a Lua script using Rojo sourcemap"""
     bundle = []
-    bundle.append("print('--- Bundling Game Source (Rojo) ---')")
+    source_map = [] # List of (start_line, end_line, file_path, original_start_line)
+    current_line = 1
+    
+    def append_chunk(chunk, path=None, content_offset=0, original_start=1):
+        nonlocal current_line
+        bundle.append(chunk)
+        
+        # Calculate lines in this chunk
+        # We use split('\n') to mimic how it will be joined or written
+        num_lines = chunk.count('\n') + 1
+        
+        if path:
+            # Map the content part of the chunk
+            # content_offset is the number of lines BEFORE the content starts in this chunk
+            start = current_line + content_offset
+            # The content length is... we need to know the content length inside the chunk?
+            # It's tricky because we only have the full chunk here.
+            # But the caller knows.
+            pass
+            
+        current_line += num_lines # +1 for the join newline happens implicitly if we treat each list item as having its own lines? 
+        # Actually "\n".join(bundle) inserts newlines.
+        # If chunk is "A", it's 1 line. Next chunk starts on line 2.
+        # So current_line increment is correct.
+        
+    # Helper to append and track
+    # We will compute offsets manually in the loop
+    
+    chunk = "print('--- Bundling Game Source (Rojo) ---')"
+    bundle.append(chunk)
+    current_line += chunk.count('\n') + 1
     
     # Helper for creating folders
-    bundle.append("""
+    chunk = """
 local function GetOrCreate(parent, name)
     local existing = parent:FindFirstChild(name)
     if existing then return existing end
@@ -214,7 +245,10 @@ local function GetOrCreate(parent, name)
     folder.Parent = parent
     return folder
 end
-""")
+"""
+    bundle.append(chunk)
+    current_line += chunk.count('\n') + 1
+
     
     print("Resolving Rojo sourcemap...")
     rojo_project = config.get("rojo_project", "default.project.json")
@@ -286,14 +320,15 @@ end
             print(f"Skipping {path}: {e}")
             continue
 
-        chunk = f"""
+        # Prepare the preamble (lines before content)
+        preamble = f"""
 do
     local current = game:GetService("{service_name}")
 """
         for folder in folders:
-            chunk += f'    current = GetOrCreate(current, "{folder}")\n'
+            preamble += f'    current = GetOrCreate(current, "{folder}")\n'
             
-        chunk += f"""
+        preamble += f"""
     local scriptInstance = current:FindFirstChild("{script_name}")
     if not scriptInstance then
         scriptInstance = Instance.new("{class_name}")
@@ -304,14 +339,37 @@ do
     _G.VirtualFiles = _G.VirtualFiles or {{}}
     _G.VirtualFiles[scriptInstance] = function(...) 
         local script = scriptInstance 
-        {content}
-    end
-end
 """
+        # Note: The preamble ends with a newline in the triple-quote string?
+        # Yes, standard python triple-quote behavior.
+        # The content comes next.
+        
+        chunk = preamble + f"        {content}\n    end\nend\n"
+        
+        # Calculate mapping
+        # Count lines in preamble
+        # We need accurate count. strip() might be dangerous if indentation matters for counting
+        preamble_lines = preamble.count('\n')
+        # Check if preamble ends with newline... yes it does.
+        
+        # The content starts at current_line + preamble_lines
+        start_map = current_line + preamble_lines
+        content_lines_count = content.count('\n') + 1
+        end_map = start_map + content_lines_count - 1
+        
+        source_map.append({
+            "file": str(path),
+            "start": start_map,
+            "end": end_map,
+            "original_start": 1
+        })
+        
         bundle.append(chunk)
+        current_line += chunk.count('\n') + 1
+
 
     # Require shim
-    bundle.append("""
+    shim = """
 local _oldRequire = require
 _G.LoadedModules = {}
 
@@ -337,17 +395,25 @@ function require(module)
     end
     error("REQUIRE_INVALID_TYPE: " .. typeof(module) .. " " .. tostring(module))
 end
-""")
-    return "\n".join(bundle)
+"""
+    bundle.append(shim)
+    
+    return "\n".join(bundle), source_map
+
 
 
 def bundle_scripts_fallback(paths):
     """Legacy bundling logic (fallback)"""
     bundle = []
-    bundle.append("print('--- Bundling Game Source (Legacy Fallback) ---')")
+    source_map = []
+    current_line = 1
+    
+    chunk = "print('--- Bundling Game Source (Legacy Fallback) ---')"
+    bundle.append(chunk)
+    current_line += chunk.count('\n') + 1
     
     # Helper for creating folders
-    bundle.append("""
+    chunk = """
 local function GetOrCreate(parent, name)
     local existing = parent:FindFirstChild(name)
     if existing then return existing end
@@ -356,7 +422,10 @@ local function GetOrCreate(parent, name)
     folder.Parent = parent
     return folder
 end
-""")
+"""
+    bundle.append(chunk)
+    current_line += chunk.count('\n') + 1
+
     
     src_files = list(paths["src"].rglob("*.luau"))
     pkg_files = list(paths["packages"].rglob("*.lua")) + list(paths["packages"].rglob("*.luau"))
@@ -381,14 +450,15 @@ end
         except:
             continue
 
-        chunk = f"""
+        # Prepare preamble
+        preamble = f"""
 do
     local current = game:GetService("{service_name}")
 """
         for folder in folders:
-            chunk += f'    current = GetOrCreate(current, "{folder}")\n'
+            preamble += f'    current = GetOrCreate(current, "{folder}")\n'
             
-        chunk += f"""
+        preamble += f"""
     local scriptInstance = current:FindFirstChild("{script_name}")
     if not scriptInstance then
         scriptInstance = Instance.new("{instance_type}")
@@ -399,17 +469,31 @@ do
     _G.VirtualFiles = _G.VirtualFiles or {{}}
     _G.VirtualFiles[scriptInstance] = function(...) 
         local script = scriptInstance 
-        {content}
-    end
-end
 """
+        chunk = preamble + f"        {content}\n    end\nend\n"
+        
+        preamble_lines = preamble.count('\n')
+        start_map = current_line + preamble_lines
+        content_lines_count = content.count('\n') + 1
+        end_map = start_map + content_lines_count - 1
+        
+        source_map.append({
+            "file": str(path),
+            "start": start_map,
+            "end": end_map,
+            "original_start": 1
+        })
+        
         bundle.append(chunk)
+        current_line += chunk.count('\n') + 1
+
 
     # Require shim logic repeated or shared...
     # For brevity, I'll rely on the main bundle_scripts to append the shim if fallback is used?
     # No, fallback needs to be self-contained or we structure it better.
     # Let's copy the shim for now to be safe.
-    bundle.append("""
+    # Require shim
+    shim = """
 local _oldRequire = require
 _G.LoadedModules = {}
 
@@ -431,8 +515,11 @@ function require(module)
     end
     error("REQUIRE_INVALID_TYPE: " .. typeof(module) .. " " .. tostring(module))
 end
-""")
-    return "\n".join(bundle)
+"""
+    bundle.append(shim)
+    
+    return "\n".join(bundle), source_map
+
 
 
 def get_testez_driver(spec_path, tests_dir):

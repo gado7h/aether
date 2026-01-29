@@ -65,6 +65,26 @@ tests_folder = "tests"
 rojo_project = "default.project.json"
 ```
 
+## Environment & Debugging
+
+### Execution Environment
+Tests run in a **Roblox Cloud** headless environment. This has some important limitations:
+- **No Physics Simulation**: Gravity and physics stepping do not run automatically.
+- **Headless**: No visual rendering.
+- **Script Context**: Tests run inside a temporary script, often referred to as `TaskScript`.
+
+### Debugging
+The runner automatically maps stack traces from the bundled `TaskScript` back to your original source files (supported for `.luau` files managed by Rojo).
+- If you see `TaskScript:123`, update to the latest version to see `src/my_script.server.luau:45`.
+- Use `print()` debugging freely; logs are streamed back to your terminal.
+
+### API Keys
+API keys can be provided in three ways (checked in order):
+1. **CLI Argument**: `roblox-test-runner run --key <KEY>` (mostly for CI)
+2. **Environment Variable**: `ROBLOX_API_KEY`
+3. **User Configuration**: Saved via `roblox-test-runner set-api <KEY>` (stored in your user home directory, not project)
+
+
 ## Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

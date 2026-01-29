@@ -79,9 +79,16 @@ def command(args):
         
         def run_tests_for_watch():
             testez_bundle = bundle_testez()
-            scripts_bundle = bundle_scripts(paths, config)
+            scripts_bundle, source_map = bundle_scripts(paths, config)
+            
+            # Adjust source map offsets
+            offset = testez_bundle.count('\n') + 1
+            for mapping in source_map:
+                mapping["start"] += offset
+                mapping["end"] += offset
+            
             bundle = testez_bundle + "\n" + scripts_bundle
-            run_test_suite(args, files, bundle, tests_dir, config)
+            run_test_suite(args, files, bundle, tests_dir, config, source_map=source_map)
         
         observer = Observer()
         handler = ChangeHandler(run_tests_for_watch)
@@ -107,6 +114,13 @@ def command(args):
     
     # Normal execution
     testez_bundle = bundle_testez()
-    scripts_bundle = bundle_scripts(paths, config)
+    scripts_bundle, source_map = bundle_scripts(paths, config)
+    
+    # Adjust source map offsets
+    offset = testez_bundle.count('\n') + 1
+    for mapping in source_map:
+        mapping["start"] += offset
+        mapping["end"] += offset
+
     bundle = testez_bundle + "\n" + scripts_bundle
-    return run_test_suite(args, files, bundle, tests_dir, config)
+    return run_test_suite(args, files, bundle, tests_dir, config, source_map=source_map)
