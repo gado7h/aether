@@ -9,48 +9,77 @@ from .utils import DEFAULT_TIMEOUT
 from .bundler import get_testez_driver
 from .config import get_api_url
 
-def resolve_source_map(text, source_map):
-    """Resolve line numbers in text using source map"""
+def resolve_source_map(text, source_map, verbose=False):
+    """
+    Resolve line numbers in text using source map and format stack traces.
+    
+    If verbose is False:
+    - Hides lines that are NOT mapped (e.g. internal TaskScript lines).
+    - Hides TestEZ internal lines unless they are part of the user's code.
+    """
     if not source_map or not text:
         return text
-        
-    def replace_line(match):
-        # Allow matching ":123" or "Line 123"
-        # Group 1: The prefix (e.g. ":", "Line ")
-        # Group 2: The line number
-        prefix = match.group(1)
-        line_num = int(match.group(2))
-        
-        for mapping in source_map:
-            if mapping["start"] <= line_num <= mapping["end"]:
-                offset = line_num - mapping["start"]
-                orig_line = mapping["original_start"] + offset
-                file_name = mapping["file"]
-                # Try to clean up file path relative to cwd if possible, but full path is fine
-                # Make it look like a standard file reference
-                
-                # If it matched ":123", return ":10 (src/foo.luau)"
-                # This helps user click it in VS Code usually? VS Code parsing needs "file:line"
-                
-                # We return "{file}:{line}"
-                # If the prefix was "Line ", we change it to "{file}:{line}"
-                
-                return f"{prefix}{line_num} [{file_name}:{orig_line}]"
-                
-        return match.group(0)
+    
+    lines = text.split('\n')
+    resolved_lines = []
+    
+    # Always keep the first line (the error message itself)
+    # But try to resolve it too
+    
+    def resolve_line_content(line):
+        # Helper to just resolve "TaskScript:123" -> "file.lua:10" in a string
+        def replace_match(match):
+            full_match = match.group(0)
+            line_str = match.group(3)
+            if not line_str: return full_match
+            line_num = int(line_str)
+            
+            for mapping in source_map:
+                if mapping["start"] <= line_num <= mapping["end"]:
+                    offset = line_num - mapping["start"]
+                    orig_line = mapping["original_start"] + offset
+                    file_name = mapping["file"]
+                    return f"{file_name}:{orig_line}"
+            return full_match
+            
+        def replace_roblox_match(match):
+            full_match = match.group(0)
+            line_num = int(match.group(2))
+            for mapping in source_map:
+                if mapping["start"] <= line_num <= mapping["end"]:
+                    offset = line_num - mapping["start"]
+                    orig_line = mapping["original_start"] + offset
+                    file_name = mapping["file"]
+                    return f"{file_name}:{orig_line}"
+            return full_match
 
-    # Regex covers:
-    # 1. :1234 (standard Lua trace)
-    # 2. Line 1234 (Roblox script trace)
-    # We use lookbehind or capturing groups carefully.
-    
-    # Matches ":123"
-    text = re.sub(r'(:)(\d+)', replace_line, text)
-    
-    # Matches "Line 123"
-    text = re.sub(r'(Line )(\d+)', replace_line, text)
-    
-    return text
+        line = re.sub(r'(TaskScript)?(:)(\d+)', replace_match, line)
+        line = re.sub(r'(Line )(\d+)', replace_roblox_match, line)
+        return line
+
+    # Process first line (Main error)
+    if lines:
+        resolved_lines.append(resolve_line_content(lines[0]))
+        
+        # Process stack trace
+        if len(lines) > 1:
+            resolved_lines.append("\n  Traceback:")
+            
+            for i, line in enumerate(lines[1:]):
+                resolved = resolve_line_content(line)
+                
+                # Check if this line was mapped
+                is_mapped = "TaskScript" not in resolved and "Line " not in resolved
+                
+                # If verbose, show everything.
+                # If NOT verbose, only show mapped lines (user code).
+                if verbose or is_mapped:
+                    # Format it nicely
+                    # Typically "Function name" might be at the end
+                    resolved_lines.append(f"  at {resolved.strip()}")
+
+    return "\n".join(resolved_lines)
+
 
 
 
@@ -64,8 +93,23 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
     api_url = get_api_url(config)
     api_key = config["api_key"]
     
-    driver = get_testez_driver(test_file, tests_dir)
+    driver, spec_offset, spec_len = get_testez_driver(test_file, tests_dir)
     full_payload = bundle + "\n" + driver
+    
+    # Create a local source map copy extended with the test spec
+    local_source_map = list(source_map) if source_map else []
+    
+    # Calculate absolute start line of the spec
+    # Bundle lines + 1 (for joining newline) + spec_offset (lines into driver)
+    bundle_lines = bundle.count('\n') + 1
+    absolute_start = bundle_lines + spec_offset
+    
+    local_source_map.append({
+        "file": str(test_file),
+        "start": absolute_start,
+        "end": absolute_start + spec_len - 1, # -1 because length includes start line
+        "original_start": 1
+    })
     
     print(f"Sending request (Payload: {len(full_payload)} chars)...")
     
@@ -105,7 +149,8 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
                 if "logs" in data and verbose:
                     print("\n[LOGS]")
                     for l in data["logs"]:
-                        print(f"  > {resolve_source_map(l['message'], source_map)}")
+                        # Logs typically don't need strack trace filtering, but we can pass verbose=True to show everything
+                        print(f"  > {resolve_source_map(l['message'], local_source_map, verbose=True)}")
 
                 elapsed = time.time() - start_time
                 output = data.get("output", {}).get("results", [{}])[0] or data.get("returnValue", {})
@@ -140,10 +185,10 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
                         print(f"\"{name}\": {status_str}")
                         
                         if res_status == "Failure" and "errors" in r:
-                            if verbose:
-                                for e in r["errors"]:
-                                    resolved_e = resolve_source_map(e, source_map)
-                                    print(f"{RED}  Error: {resolved_e}{RESET}")
+                            # Always print errors for failures
+                            for e in r["errors"]:
+                                resolved_e = resolve_source_map(e, local_source_map, verbose)
+                                print(f"{RED}  Error: {resolved_e}{RESET}")
 
                              
                 elif output.get("status") == "Success" and not has_failure:
@@ -156,8 +201,7 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
                     fails = output.get("failures", [])
                     if fails:
                         for f in fails:
-                            print(f"   - {resolve_source_map(f, source_map)}")
-
+                            print(f"   - {resolve_source_map(f, local_source_map, verbose)}")
                 
                 print(f"[TIME] Completed in {elapsed:.2f}s")
                     
@@ -169,8 +213,9 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
             elif state == "FAILED":
                 elapsed = time.time() - start_time
                 print(f"\n[ERROR] Execution failed after {elapsed:.2f}s")
-                resolved_msg = resolve_source_map(data.get('error', {}).get('message'), source_map)
+                resolved_msg = resolve_source_map(data.get('error', {}).get('message'), local_source_map, verbose)
                 print(f"   - {resolved_msg}")
+
 
                 if "logs" in data:
                     for l in data["logs"]:

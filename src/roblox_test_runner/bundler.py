@@ -573,7 +573,14 @@ SpecModule.Parent = TestsFolder
 local testMethod = (function()
     local script = SpecModule
 """)
+    # Calculate the offset of the spec content within the driver
+    # Count lines in the driver so far (before appending spec_content)
+    pre_spec_lines = sum(chunk.count('\n') for chunk in driver) + len(driver) - 1  # account for join newlines
+    spec_offset = pre_spec_lines + 1  # +1 because next line is where spec starts
+    
     driver.append(spec_content)
+    spec_len = spec_content.count('\n') + 1
+    
     driver.append("""
 end)()
 
@@ -633,4 +640,5 @@ return {
     failureCount = results.failureCount
 }
 """)
-    return "\n".join(driver)
+    return "\n".join(driver), spec_offset, spec_len
+
