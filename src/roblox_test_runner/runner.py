@@ -66,6 +66,8 @@ def resolve_source_map(text, source_map, verbose=False):
             resolved_lines.append("\n  Traceback:")
             
             for i, line in enumerate(lines[1:]):
+                if not line.strip():
+                    continue
                 resolved = resolve_line_content(line)
                 
                 # Check if this line was mapped
