@@ -3,7 +3,7 @@ Aether Runner
 Execute Luau tests on Roblox Cloud
 """
 
-__version__ = "0.3.7"
+__version__ = "0.3.8"
 __author__ = "WildLink Team"
 
 from .cli import main

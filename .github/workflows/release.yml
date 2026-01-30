@@ -80,11 +80,19 @@ jobs:
             fi
           fi
 
-      - name: Upload Release Assets
+      - name: Upload Executable
         uses: softprops/action-gh-release@v1
         with:
           files: |
             aether-${{ matrix.TARGET }}-${{ matrix.ARCH }}${{ matrix.ASSET_EXT }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Upload Python Assets
+        if: matrix.os == 'ubuntu-latest'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
             dist/*.whl
             dist/*.tar.gz
         env:
