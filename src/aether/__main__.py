@@ -1,5 +1,5 @@
 """
-Entry point for python -m roblox_test_runner
+Entry point for python -m aether
 """
 from .cli import main
 

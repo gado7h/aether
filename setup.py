@@ -4,18 +4,18 @@ with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 
 setup(
-    name="roblox-test-runner",
-    version="0.3.4",
+    name="aether-runner",
+    version="0.3.5",
     author="WildLink Team",
     description="Execute Luau tests on Roblox Cloud",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/roblox-test-runner",
+    url="https://github.com/yourusername/aether",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     include_package_data=True,
     package_data={
-        "roblox_test_runner": ["vendor/**/*"],
+        "aether": ["vendor/**/*"],
     },
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -31,7 +31,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "roblox-test-runner=roblox_test_runner.cli:main",
+            "aether=aether.cli:main",
         ],
     },
 )

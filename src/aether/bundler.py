@@ -1,5 +1,5 @@
 """
-Roblox Test Runner - Script bundler for Roblox Cloud execution
+Aether - Script bundler for Roblox Cloud execution
 """
 from pathlib import Path
 
@@ -9,7 +9,7 @@ import os
 # Get the package's testez directory
 # Support PyInstaller's _MEIPASS for bundled data
 if hasattr(sys, '_MEIPASS'):
-    PACKAGE_DIR = Path(sys._MEIPASS) / "roblox_test_runner"
+    PACKAGE_DIR = Path(sys._MEIPASS) / "aether"
 else:
     PACKAGE_DIR = Path(__file__).parent
 

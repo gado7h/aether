@@ -1,5 +1,5 @@
 """
-Roblox Test Runner - Rojo Sourcemap Resolver
+Aether - Rojo Sourcemap Resolver
 
 Resolves file paths to Roblox instance paths using Rojo's sourcemap.
 """

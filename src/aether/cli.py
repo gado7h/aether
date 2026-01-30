@@ -1,5 +1,5 @@
 """
-Roblox Test Runner - CLI interface
+Aether - CLI interface
 """
 import sys
 import argparse
@@ -8,8 +8,8 @@ from .commands import run, init, config, auth
 def create_parser():
     """Create CLI argument parser with subcommands"""
     parser = argparse.ArgumentParser(
-        prog="roblox-test-runner",
-        description="Roblox Test Runner - Execute Luau tests on Roblox Cloud",
+        prog="aether",
+        description="Aether - Execute Luau tests on Roblox Cloud",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     
@@ -42,6 +42,11 @@ def create_parser():
         "-w", "--watch",
         action="store_true",
         help="Watch for file changes and auto re-run tests"
+    )
+    run_parser.add_argument(
+        "--failed",
+        action="store_true",
+        help="Run only tests that failed in the previous run"
     )
     run_parser.add_argument(
         "-t", "--timeout",

@@ -1,13 +1,20 @@
 """
-Roblox Test Runner - Core test execution logic
+Aether - Core test execution logic
 """
 import time
 import requests
 import json
 import re
+import os
 from .utils import DEFAULT_TIMEOUT
 from .bundler import get_testez_driver
 from .config import get_api_url
+
+# ANSI Colors
+GREEN = "\033[92m"
+RED = "\033[91m"
+YELLOW = "\033[93m"
+RESET = "\033[0m"
 
 def resolve_source_map(text, source_map, verbose=False):
     """
@@ -39,6 +46,10 @@ def resolve_source_map(text, source_map, verbose=False):
                     offset = line_num - mapping["start"]
                     orig_line = mapping["original_start"] + offset
                     file_name = mapping["file"]
+                    try:
+                        file_name = os.path.relpath(file_name, os.getcwd())
+                    except ValueError:
+                        pass # Keep absolute if on different drive
                     return f"{file_name}:{orig_line}"
             return full_match
             
@@ -50,6 +61,10 @@ def resolve_source_map(text, source_map, verbose=False):
                     offset = line_num - mapping["start"]
                     orig_line = mapping["original_start"] + offset
                     file_name = mapping["file"]
+                    try:
+                        file_name = os.path.relpath(file_name, os.getcwd())
+                    except ValueError:
+                        pass
                     return f"{file_name}:{orig_line}"
             return full_match
 
@@ -131,7 +146,7 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
             elapsed = time.time() - start_time
             
             if elapsed > timeout:
-                print(f"\n[TIMEOUT] Test exceeded {elapsed:.1f}s (limit: {timeout}s)")
+                print(f"\n{RED}[TIMEOUT]{RESET} Test exceeded {elapsed:.1f}s (limit: {timeout}s)")
                 return False
             
             print(".", end="", flush=True)
@@ -144,7 +159,7 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
                 data = status_resp.json()
                 state = data.get("state")
             except requests.exceptions.RequestException as e:
-                print(f"\n[ERROR] Checking task status: {e}")
+                print(f"\n{RED}[ERROR]{RESET} Checking task status: {e}")
                 return False
             
             if state == "COMPLETE":
@@ -165,12 +180,6 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
                 if "results" in output and output["results"]:
                     print(f"\n[\"{test_file.stem}\"]:")
                     
-                    # ANSI colors
-                    GREEN = "\033[92m"
-                    RED = "\033[91m"
-                    YELLOW = "\033[93m"
-                    RESET = "\033[0m"
-
                     for r in output["results"]:
                         name = r.get("name", "Unknown")
                         res_status = r.get("status", "Unknown")
@@ -194,10 +203,10 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
 
                              
                 elif output.get("status") == "Success" and not has_failure:
-                    print(f"\n[SUCCESS] Test Suite Passed")
+                    print(f"\n{GREEN}[SUCCESS]{RESET} Test Suite Passed")
                     
                 else:
-                    print(f"\n[FAILED] Test Suite")
+                    print(f"\n{RED}[FAILED]{RESET} Test Suite")
                     if has_failure:
                         print(f"   - {failure_count} test(s) failed")
                     fails = output.get("failures", [])
@@ -214,7 +223,7 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
                 
             elif state == "FAILED":
                 elapsed = time.time() - start_time
-                print(f"\n[ERROR] Execution failed after {elapsed:.2f}s")
+                print(f"\n{RED}[ERROR]{RESET} Execution failed after {elapsed:.2f}s")
                 resolved_msg = resolve_source_map(data.get('error', {}).get('message'), local_source_map, verbose)
                 print(f"   - {resolved_msg}")
 
@@ -225,7 +234,7 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
                 return False
                 
     except Exception as e:
-        print(f"[ERROR] Request Failed: {e}")
+        print(f"{RED}[ERROR]{RESET} Request Failed: {e}")
         return False
 
 
@@ -234,6 +243,32 @@ def run_test_suite(args, files, bundle, tests_dir, config, source_map=None):
     """Execute a test suite"""
     import sys
     
+    RESULTS_FILE = tests_dir / ".test-results"
+
+    # --failed: Filter tests based on previous run
+    if hasattr(args, 'failed') and args.failed:
+        if RESULTS_FILE.exists():
+            try:
+                with open(RESULTS_FILE, "r") as f:
+                    prev_results = json.load(f)
+                    failed_specs = set(prev_results.get("failures", []))
+                
+                if not failed_specs:
+                    print(f"{GREEN}[INFO]{RESET} No failed tests from last run.")
+                    return 0
+                
+                original_count = len(files)
+                files = [f for f in files if f.stem in failed_specs]
+                print(f"{YELLOW}[INFO]{RESET} Re-running {len(files)} failed test(s) (out of {original_count})")
+                
+                if not files:
+                    print(f"{YELLOW}[WARN]{RESET} Failed tests from last run no longer exist.")
+                    return 0
+            except Exception as e:
+                print(f"{YELLOW}[WARN]{RESET} Could not load previous results: {e}")
+        else:
+            print(f"{YELLOW}[WARN]{RESET} No previous test results found. Running all tests.")
+
     # Filter tests if specific name provided
     if args.test != "all":
         target = args.test.lower()
@@ -246,13 +281,14 @@ def run_test_suite(args, files, bundle, tests_dir, config, source_map=None):
         if found:
             files = [found]
         else:
-            print(f"[ERROR] No test found matching '{args.test}'")
+            print(f"{RED}[ERROR]{RESET} No test found matching '{args.test}'")
             return 1
     
     passed = 0
     failed = 0
     start_time = time.time()
     results = []
+    failed_test_names = []
     
     # Sequential execution
     for f in files:
@@ -270,10 +306,51 @@ def run_test_suite(args, files, bundle, tests_dir, config, source_map=None):
             passed += 1
         else:
             failed += 1
+            failed_test_names.append(f.stem)
     
     total_time = time.time() - start_time
     total = passed + failed
     
+    # Save results for --failed
+    try:
+        current_failures = failed_test_names
+        # If we are running only a subset, we might want to merge with existing failures?
+        # For simplicity, let's say the file tracks the LAST RUN's failures.
+        # But if I fix one test and run with --failed, I expect others to remain?
+        # A common pattern is: --failed only considers the *active* set.
+        # However, to be robust, we probably just want to save what failed in THIS run.
+        # Mechanism:
+        # If running ALL: overwrite .test-results with current failures.
+        # If running --failed: 
+        #   failures = (previous_failures - passed_in_this_run) + new_failures_in_this_run
+        
+        all_failures = set(failed_test_names)
+        
+        if hasattr(args, 'failed') and args.failed and RESULTS_FILE.exists():
+             # We need to remove tests that PASSED this time from the previous list
+             try:
+                 with open(RESULTS_FILE, "r") as f:
+                     prev = json.load(f)
+                     prev_fails = set(prev.get("failures", []))
+                 
+                 # Remove tests that were run and passed
+                 for res in results:
+                     if res["passed"] and res["name"] in prev_fails:
+                         prev_fails.remove(res["name"])
+                     elif not res["passed"]:
+                         prev_fails.add(res["name"])
+                         
+                 all_failures = prev_fails
+             except:
+                 pass # Fallback to just current run failures
+        
+        with open(RESULTS_FILE, "w") as f:
+            json.dump({"failures": list(all_failures), "last_run": time.time()}, f)
+            
+    except Exception as e:
+        if args.verbose:
+            print(f"{YELLOW}[WARN]{RESET} Could not save test results: {e}")
+
     # Output results
     if args.json:
         output = {
@@ -286,7 +363,8 @@ def run_test_suite(args, files, bundle, tests_dir, config, source_map=None):
         print(json.dumps(output, indent=2))
     else:
         print("\n" + "="*50)
-        print(f"SUMMARY: {passed}/{total} passed, {failed} failed")
+        summary_color = GREEN if failed == 0 else RED
+        print(f"SUMMARY: {summary_color}{passed}/{total} passed{RESET}, {summary_color if failed > 0 else ''}{failed} failed{RESET}")
         print(f"Total time: {total_time:.2f}s")
         print("="*50)
     

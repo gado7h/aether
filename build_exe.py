@@ -5,11 +5,11 @@ import os
 
 # Strategy: Create a temporary launcher script at the root
 # that imports the package from the 'src' directory.
-# This ensures PyInstaller correctly identifies 'roblox_test_runner'
+# This ensures PyInstaller correctly identifies 'aether'
 # as a package and bundles it correctly.
 
 SRC_DIR = Path("src")
-LAUNCHER = Path("roblox_test_runner_launcher.py")
+LAUNCHER = Path("aether_launcher_temp.py")
 
 # 1. Clean previous builds
 for path in [Path("build"), Path("dist")]:
@@ -24,7 +24,7 @@ with open(LAUNCHER, "w") as f:
     # Add _MEIPASS support for PyInstaller bundles
     f.write("if hasattr(sys, '_MEIPASS'):\n")
     f.write("    sys.path.insert(0, sys._MEIPASS)\n")
-    f.write("from roblox_test_runner.cli import main\n")
+    f.write("from aether.cli import main\n")
     f.write("if __name__ == '__main__':\n")
     f.write("    main()\n")
 
@@ -37,19 +37,19 @@ try:
     # Run PyInstaller
     PyInstaller.__main__.run([
         str(LAUNCHER),
-        '--name=roblox-test-runner',
+        '--name=aether',
         '--onefile',
         '--clean',
-        # Add 'src' to search path so it finds 'roblox_test_runner' package
+        # Add 'src' to search path so it finds 'aether' package
         f'--paths={str(SRC_DIR.resolve())}', 
-        '--hidden-import=roblox_test_runner',
-        '--hidden-import=roblox_test_runner.cli',
-        '--hidden-import=roblox_test_runner.config',
-        '--hidden-import=roblox_test_runner.bundler',
-        '--hidden-import=roblox_test_runner.runner',
-        '--hidden-import=roblox_test_runner.utils',
+        '--hidden-import=aether',
+        '--hidden-import=aether.cli',
+        '--hidden-import=aether.config',
+        '--hidden-import=aether.bundler',
+        '--hidden-import=aether.runner',
+        '--hidden-import=aether.utils',
         # Data: Include the vendor folder (path relative to the package)
-        f'--add-data={str(SRC_DIR / "roblox_test_runner" / "vendor")}{separator}roblox_test_runner/vendor',
+        f'--add-data={str(SRC_DIR / "aether" / "vendor")}{separator}aether/vendor',
     ])
 
 finally:

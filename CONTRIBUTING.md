@@ -1,14 +1,14 @@
-# Contributing to Roblox Test Runner
+# Contributing to Aether
 
-Thank you for your interest in contributing to the Roblox Test Runner! We appreciate your help in making this tool better for the Roblox community.
+Thank you for your interest in contributing to Aether! We appreciate your help in making this tool better for the Roblox community.
 
 ## Getting Started
 
 1.  **Fork the repository** on GitHub.
 2.  **Clone your fork** locally:
     ```bash
-    git clone https://github.com/yourusername/roblox-test-runner.git
-    cd roblox-test-runner
+    git clone https://github.com/yourusername/aether.git
+    cd aether
     ```
 3.  **Install development dependencies**:
     ```bash
@@ -32,7 +32,7 @@ Thank you for your interest in contributing to the Roblox Test Runner! We apprec
 To run the internal tests (if available) or manual verification:
 
 ```bash
-roblox-test-runner run
+aether run
 ```
 
 We recommend setting up a test place on Roblox and testing against it.

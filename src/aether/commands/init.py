@@ -2,12 +2,12 @@ from pathlib import Path
 
 def command(args):
     """Handle init command"""
-    config_path = Path("roblox-test-runner.toml")
+    config_path = Path("aether.toml")
     if config_path.exists():
-        print("[ERROR] roblox-test-runner.toml already exists")
+        print("[ERROR] aether.toml already exists")
         return 1
     
-    default_config = """# Roblox Test Runner Configuration
+    default_config = """# Aether Configuration
 
 [runner]
 # Timeout for each test in seconds
@@ -31,5 +31,5 @@ api_key = "vGtiGKMpOUuH7X1i1ddehLEVXFLgZ2JjOtW/3gQCEwlvYLFQZXlKaGJHY2lPaUpTVXpJM
     with open(config_path, "w", encoding="utf-8") as f:
         f.write(default_config)
     
-    print("✅ Created roblox-test-runner.toml")
+    print("[OK] Created aether.toml")
     return 0

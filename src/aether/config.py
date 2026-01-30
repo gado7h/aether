@@ -1,5 +1,5 @@
 """
-Roblox Test Runner - Configuration management
+Aether - Configuration management
 
 Handles configuration from:
 1. CLI flags (highest priority)
@@ -7,7 +7,7 @@ Handles configuration from:
 3. TOML config files (hierarchical)
    - Current directory
    - Parent directories
-   - User config (~/.config/roblox-test-runner/config.toml)
+   - User config (~/.config/aether/config.toml)
 """
 import os
 import sys
@@ -24,7 +24,7 @@ else:
 load_dotenv()
 
 # Config paths
-USER_CONFIG_DIR = Path.home() / ".config" / "roblox-test-runner"
+USER_CONFIG_DIR = Path.home() / ".config" / "aether"
 USER_CONFIG_FILE = USER_CONFIG_DIR / "config.toml"
 
 def load_toml_file(path: Path) -> dict:
@@ -61,9 +61,9 @@ def load_config_hierarchy() -> dict:
     paths_to_check = []
     
     while current != root:
-        paths_to_check.append(current / "roblox-test-runner.toml")
+        paths_to_check.append(current / "aether.toml")
         current = current.parent
-    paths_to_check.append(root / "roblox-test-runner.toml")
+    paths_to_check.append(root / "aether.toml")
     
     # Load from root down to current (so closer configs override)
     for path in reversed(paths_to_check):

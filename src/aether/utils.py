@@ -1,5 +1,5 @@
 """
-Roblox Test Runner - Configuration and utilities
+Aether - Configuration and utilities
 """
 from pathlib import Path
 
