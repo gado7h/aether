@@ -70,13 +70,13 @@ jobs:
         run: |
           # Create Archive
           cd dist
-          ASSET_NAME="roblox-test-runner-${{ matrix.TARGET }}-${{ matrix.ARCH }}${{ matrix.ASSET_EXT }}"
+          ASSET_NAME="aether-${{ matrix.TARGET }}-${{ matrix.ARCH }}${{ matrix.ASSET_EXT }}"
           
           if [ "${{ matrix.ASSET_EXT }}" == ".zip" ]; then
             if [ "${{ matrix.os }}" == "windows-latest" ]; then
-              7z a ../$ASSET_NAME roblox-test-runner${{ matrix.EXT }}
+              7z a ../$ASSET_NAME aether${{ matrix.EXT }}
             else
-              zip -r ../$ASSET_NAME roblox-test-runner${{ matrix.EXT }}
+              zip -r ../$ASSET_NAME aether${{ matrix.EXT }}
             fi
           fi
 
@@ -84,7 +84,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            roblox-test-runner-${{ matrix.TARGET }}-${{ matrix.ARCH }}${{ matrix.ASSET_EXT }}
+            aether-${{ matrix.TARGET }}-${{ matrix.ARCH }}${{ matrix.ASSET_EXT }}
             dist/*.whl
             dist/*.tar.gz
         env:
