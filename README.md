@@ -9,7 +9,7 @@
 
 - 🚀 **Run Tests on Cloud**: Execute tests in a live Roblox server environment.
 - 📦 **Rojo Integration**: Automatically respects your `default.project.json` structure.
-- ⚙️ **Configurable**: Use `roblox-test-runner.toml` (legacy) or `aether.toml` (future) to customize paths, timeouts, and more.
+- ⚙️ **Configurable**: Use `aether.toml` to customize paths, timeouts, and more.
 - 🔄 **Watch Mode**: Automatically re-run tests when files change (`-w`).
 - 🤖 **CI/CD Ready**: Native support for GitHub Actions authentication.
 - 🎯 **Run Failed**: Easily retry only failed tests with `--failed`.
@@ -87,7 +87,7 @@ Tests run in a **Roblox Cloud** headless environment. This has some important li
 
 ### Debugging
 The runner automatically maps stack traces from the bundled `TaskScript` back to your original source files (supported for `.luau` files managed by Rojo).
-- Tracebacks now use **relative paths** for easier reading (e.g., `src/my_script.server.luau:45`).
+- Tracebacks use **relative paths** for easier reading (e.g., `src/my_script.server.luau:45`).
 - Use `print()` debugging freely; logs are streamed back to your terminal.
 
 ### API Keys
