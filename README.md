@@ -1,9 +1,9 @@
 # Aether
 
-[![PyPI version](https://badge.fury.io/py/aether-runner.svg)](https://badge.fury.io/py/aether-runner)
+[![PyPI version](https://badge.fury.io/py/roblox-aether.svg)](https://badge.fury.io/py/roblox-aether)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Aether** (formerly `roblox-test-runner`) is a powerful CLI tool designed to execute Luau tests (TestEZ) directly on Roblox Cloud. It allows you to run unit tests from your local machine and see the results instantly, integrating seamlessly into your development workflow.
+**Aether** is a powerful CLI tool designed to execute Luau tests (TestEZ) directly on Roblox Cloud. It allows you to run unit tests from your local machine and see the results instantly, integrating seamlessly into your development workflow.
 
 ## Features
 
@@ -16,8 +16,18 @@
 
 ## Installation
 
+### Using pip
+
 ```bash
-pip install aether-runner
+pip install roblox-aether
+```
+
+### Using rokit
+
+You can also install Aether using Rokit:
+
+```bash
+rokit add gado7h/aether
 ```
 
 ## Quick Start
@@ -56,7 +66,7 @@ pip install aether-runner
 - `set-api <key>`: Save API key.
 - `auth`: CI/CD authentication helper.
 
-### Configuration (`roblox-test-runner.toml`)
+### Configuration (`aether.toml`)
 
 ```toml
 [runner]

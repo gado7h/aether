@@ -4,7 +4,7 @@ with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 
 setup(
-    name="aether-runner",
+    name="roblox-aether",
     version="0.3.6",
     author="WildLink Team",
     description="Execute Luau tests on Roblox Cloud",
