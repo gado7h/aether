@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="roblox-aether",
-    version="0.4.0",
+    version="0.2.4",
     author="WildLink Team",
     description="Execute Luau tests on Roblox Cloud",
     long_description=long_description,
