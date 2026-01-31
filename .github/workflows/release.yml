@@ -1,10 +1,12 @@
 name: Release
-run-name: Release on ${{ github.event.base_ref }} - ${{ github.event.head_commit.message }}
+run-name: Release ${{ github.ref_name }}
 
 on:
   push:
     tags:
       - "v*"
+    branches:
+      - "main"
 
 permissions:
   contents: write
@@ -43,6 +45,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install build pyinstaller
+          pip install rich
           pip install .
           
       # Build PyPI Package (Only on Linux to avoid duplicates)
