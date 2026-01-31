@@ -11,6 +11,8 @@ permissions:
 
 jobs:
   build:
+    # Skip if this push was made by the release action (creating a tag)
+    if: github.actor != 'github-actions[bot]'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
