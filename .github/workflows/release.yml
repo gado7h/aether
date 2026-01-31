@@ -3,8 +3,8 @@ run-name: Release ${{ github.ref_name }}
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - "main"
 
 permissions:
   contents: write
@@ -45,7 +45,15 @@ jobs:
           pip install build pyinstaller
           pip install rich
           pip install .
-          
+      
+      - name: Get Version
+        id: get_version
+        shell: bash
+        run: |
+          VERSION=$(python setup.py --version)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Detected version: $VERSION"
+
       # Build PyPI Package (Only on Linux to avoid duplicates)
       - name: Build Wheel (PyPI)
         if: matrix.os == 'ubuntu-latest'
@@ -53,7 +61,7 @@ jobs:
 
       # Publish to PyPI (Only on Linux)
       - name: Publish to PyPI
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && contains(github.event.head_commit.message, 'release')
         continue-on-error: true
         env:
           TWINE_USERNAME: __token__
@@ -83,17 +91,22 @@ jobs:
           fi
 
       - name: Upload Executable
+        if: contains(github.event.head_commit.message, 'release')
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: v${{ env.VERSION }}
+          target_commitish: main
           files: |
             aether-${{ matrix.TARGET }}-${{ matrix.ARCH }}${{ matrix.ASSET_EXT }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Upload Python Assets
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && contains(github.event.head_commit.message, 'release')
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: v${{ env.VERSION }}
+          target_commitish: main
           files: |
             dist/*.whl
             dist/*.tar.gz
