@@ -29,6 +29,9 @@ jobs:
       - name: Build Executable
         run: python build_exe.py
 
+      - name: Verify Executable
+        run: ./dist/aether.exe --help
+
       - name: Upload aether
         uses: actions/upload-artifact@v4
         with:
