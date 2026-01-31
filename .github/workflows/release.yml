@@ -105,10 +105,10 @@ jobs:
         with:
           path: artifacts
 
-      - name: Get version
-        run: |
-          VERSION=$(python setup.py --version)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+      # - name: Get version
+      #   run: |
+      #     VERSION=$(python setup.py --version)
+      #     echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Prepare release assets
         run: |
@@ -121,8 +121,8 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ env.VERSION }}
-          name: v${{ env.VERSION }}
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           # body: "Release v${{ env.VERSION }}"
           files: |
             artifacts/aether-windows-x86_64.zip
