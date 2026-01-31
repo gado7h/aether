@@ -1,53 +1,79 @@
 # Aether
 
-[![PyPI version](https://badge.fury.io/py/roblox-aether.svg)](https://badge.fury.io/py/roblox-aether)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+A powerful CLI tool designed to execute Luau tests (TestEZ) directly on Roblox Cloud. It allows you to run unit tests from your local machine and see the results instantly, integrating seamlessly into your development workflow.
 
-**Aether** is a minimalist, high-signal CLI tool for executing Luau tests directly on Roblox Cloud. Run tests from your local machine with instant feedback and a professional developer experience.
+## Features
 
-## ✨ Features
+- **Run Tests on Cloud**: Execute tests in a live Roblox server environment.
+- **Rojo Integration**: Automatically respects your `default.project.json` structure.
+- **Configurable**: Use `aether.toml` to customize paths, timeouts, and more.
+- **Watch Mode**: Automatically re-run tests when files change (`-w`).
+- **CI/CD Ready**: Native support for GitHub Actions authentication.
+- **Run Failed**: Easily retry only failed tests with `--failed`.
 
-- **Minimalist UI**: Clean, high-signal output with semantic coloring and no visual noise.
-- **Smart Watch Mode**: Automatically re-runs only relevant tests on file change.
-- **Rojo Integration**: Seamlessly respects your project structure.
-- **CI/CD Ready**: Built-in authentication support for GitHub Actions.
-- **Developer Experience**: "Test Cards" layout, instant feedback, and clean tracebacks.
+## Installation
 
-## 🚀 Quick Start
-
-### Installation
+### Using pip
 
 ```bash
 pip install roblox-aether
-# OR
+```
+
+### Using rokit
+
+You can also install Aether using Rokit:
+
+```bash
 rokit add gado7h/aether
 ```
 
-### Usage
+## Quick Start
 
-**1. Initialize:**
-```bash
-aether init
-```
+1. **Initialize Configuration**:
+   ```bash
+   aether init
+   ```
+   This creates a default configuration file.
 
-**2. Set API Key:**
-```bash
-aether set-api <YOUR_API_KEY>
-```
+2. **Set API Key**:
+   You can store your API key locally:
+   ```bash
+   aether set-api <YOUR_API_KEY>
+   ```
 
-**3. Run Tests:**
-```bash
-aether run
-```
+3. **Run Tests**:
+   ```bash
+   aether run
+   ```
 
-**4. Watch Mode:**
-```bash
-aether run --watch
-```
+   To watch for file changes:
+   ```bash
+   aether run --watch
+   ```
 
-## 🛠️ Configuration
+   To provide the API key directly (useful for scripts):
+   ```bash
+   aether run --api <YOUR_API_KEY>
+   ```
 
-Configure via `aether.toml`:
+## Usage
+
+### Commands
+
+- `aether run [test_name]`: Run tests. Omit `test_name` to run all.
+    - `--watch` (`-w`): Watch for changes and re-run.
+    - `--api <KEY>`: Provide API key directly.
+    - `--failed`: Run only tests that failed previously.
+    - `--json` (`-j`): Output results in JSON format.
+    - `--verbose` (`-v`): Show full logs.
+- `aether init`: Create default configuration.
+- `aether config`: View current configuration.
+- `aether set-api <KEY>`: Save API key to user configuration.
+
+### Configuration
+
+Aether uses `aether.toml` for configuration.
+
 ```toml
 [runner]
 timeout = 60
@@ -57,16 +83,10 @@ tests_folder = "tests"
 rojo_project = "default.project.json"
 ```
 
-## 💻 Environment
+## Environment & Debugging
 
-Tests run in a headless **Roblox Cloud** environment.
-- **Relative Path Tracebacks**: Stack traces are automatically mapped to local source files.
-- **Static Physics**: Physics simulation is paused; manually step if required.
+Tests run in a **Roblox Cloud** headless environment. Physics simulation is not active by default. Output from `print()` is streamed back to your terminal. Stack traces are automatically mapped to your local source files.
 
-## 🤝 Contributing
+## Examples
 
-We welcome contributions! Open an issue or submit a PR on GitHub.
-
-## 📄 License
-
-MIT License.
+Check the [examples](examples/) directory for sample setups.

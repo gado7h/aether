@@ -24,3 +24,9 @@ env/
 # Project Specific
 .roblox-test-runner.json
 *.log
+
+
+# Test Results
+.test-results/
+.test-results
+

@@ -54,6 +54,11 @@ def create_parser():
         metavar="SECONDS",
         help=f"Timeout per test in seconds"
     )
+    run_parser.add_argument(
+        "--api",
+        metavar="KEY",
+        help="Roblox Open Cloud API Key"
+    )
     
     # --- config command ---
     subparsers.add_parser("config", help="Show current configuration")

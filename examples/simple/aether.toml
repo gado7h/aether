@@ -1,0 +1,6 @@
+[runner]
+timeout = 30
+tests_folder = "."
+
+[project]
+rojo_project = "default.project.json"

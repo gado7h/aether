@@ -18,6 +18,8 @@ def command(args):
     
     if args.timeout:
         config["timeout"] = args.timeout
+    if args.api:
+        config["api_key"] = args.api
     
     missing = validate_config(config)
     
