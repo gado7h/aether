@@ -48,6 +48,8 @@ try:
         '--hidden-import=aether.bundler',
         '--hidden-import=aether.runner',
         '--hidden-import=aether.utils',
+        '--hidden-import=aether.ui',
+        '--collect-all=rich',
         # Data: Include the vendor folder (path relative to the package)
         f'--add-data={str(SRC_DIR / "aether" / "vendor")}{separator}aether/vendor',
     ])
