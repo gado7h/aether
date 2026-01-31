@@ -7,22 +7,14 @@ import json
 import re
 import os
 from .utils import DEFAULT_TIMEOUT
-from .bundler import get_testez_driver
+from .bundler import get_testez_driver, get_master_driver
 from .config import get_api_url
 
-# ANSI Colors
-GREEN = "\033[92m"
-RED = "\033[91m"
-YELLOW = "\033[93m"
-RESET = "\033[0m"
+from .ui import console
 
 def resolve_source_map(text, source_map, verbose=False):
     """
     Resolve line numbers in text using source map and format stack traces.
-    
-    If verbose is False:
-    - Hides lines that are NOT mapped (e.g. internal TaskScript lines).
-    - Hides TestEZ internal lines unless they are part of the user's code.
     """
     if not source_map or not text:
         return text
@@ -30,15 +22,12 @@ def resolve_source_map(text, source_map, verbose=False):
     lines = text.split('\n')
     resolved_lines = []
     
-    # Always keep the first line (the error message itself)
-    # But try to resolve it too
-    
     def resolve_line_content(line):
-        # Helper to just resolve "TaskScript:123" -> "file.lua:10" in a string
         def replace_match(match):
             full_match = match.group(0)
             line_str = match.group(3)
-            if not line_str: return full_match
+            if not line_str:
+                return full_match
             line_num = int(line_str)
             
             for mapping in source_map:
@@ -49,7 +38,7 @@ def resolve_source_map(text, source_map, verbose=False):
                     try:
                         file_name = os.path.relpath(file_name, os.getcwd())
                     except ValueError:
-                        pass # Keep absolute if on different drive
+                        pass
                     return f"{file_name}:{orig_line}"
             return full_match
             
@@ -72,11 +61,9 @@ def resolve_source_map(text, source_map, verbose=False):
         line = re.sub(r'(Line )(\d+)', replace_roblox_match, line)
         return line
 
-    # Process first line (Main error)
     if lines:
         resolved_lines.append(resolve_line_content(lines[0]))
         
-        # Process stack trace
         if len(lines) > 1:
             resolved_lines.append("\n  Traceback:")
             
@@ -84,27 +71,16 @@ def resolve_source_map(text, source_map, verbose=False):
                 if not line.strip():
                     continue
                 resolved = resolve_line_content(line)
-                
-                # Check if this line was mapped
                 is_mapped = "TaskScript" not in resolved and "Line " not in resolved
-                
-                # If verbose, show everything.
-                # If NOT verbose, only show mapped lines (user code).
                 if verbose or is_mapped:
-                    # Format it nicely
-                    # Typically "Function name" might be at the end
                     resolved_lines.append(f"  at {resolved.strip()}")
 
     return "\n".join(resolved_lines)
 
 
-
-
-
 def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verbose=False, source_map=None):
-
     """Execute a single test file on Roblox Cloud"""
-    print(f"\n[Running Test: {test_file.name}]")
+    # print(f"\n[Running Test: {test_file.name}]")
     start_time = time.time()
     
     api_url = get_api_url(config)
@@ -113,22 +89,18 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
     driver, spec_offset, spec_len = get_testez_driver(test_file, tests_dir)
     full_payload = bundle + "\n" + driver
     
-    # Create a local source map copy extended with the test spec
     local_source_map = list(source_map) if source_map else []
-    
-    # Calculate absolute start line of the spec
-    # Bundle lines + 1 (for joining newline) + spec_offset (lines into driver)
     bundle_lines = bundle.count('\n') + 1
     absolute_start = bundle_lines + spec_offset
     
     local_source_map.append({
         "file": str(test_file),
         "start": absolute_start,
-        "end": absolute_start + spec_len - 1, # -1 because length includes start line
+        "end": absolute_start + spec_len - 1,
         "original_start": 1
     })
     
-    print(f"Sending request (Payload: {len(full_payload)} chars)...")
+    # print(f"Sending request (Payload: {len(full_payload)} chars)...")
     
     test_results = []
     has_suite_failure = False
@@ -150,7 +122,7 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
             
             if elapsed > timeout:
                 if not config.get("json"):
-                    print(f"\n{RED}[TIMEOUT]{RESET} Test exceeded {elapsed:.1f}s (limit: {timeout}s)")
+                    console.print(f"\n[red][TIMEOUT][/red] Test exceeded {elapsed:.1f}s (limit: {timeout}s)")
                 return {
                     "success": False, 
                     "results": [{
@@ -163,7 +135,7 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
                 }
             
             if not config.get("json"):
-                print(".", end="", flush=True)
+                pass
                 
             try:
                 status_resp = requests.get(
@@ -175,7 +147,7 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
                 state = data.get("state")
             except requests.exceptions.RequestException as e:
                 if not config.get("json"):
-                    print(f"\n{RED}[ERROR]{RESET} Checking task status: {e}")
+                    console.print(f"\n[red][ERROR][/red] Checking task status: {e}")
                 return {
                     "success": False,
                     "results": [{
@@ -191,56 +163,14 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
                 elapsed = time.time() - start_time
                 output = data.get("output", {}).get("results", [{}])[0] or data.get("returnValue", {})
                 
-                # Check if there are any failures
                 failure_count = output.get("failureCount", 0)
                 has_suite_failure = failure_count > 0
                 
-                # --- LOGGING (only in non-json mode) ---
-                if not config.get("json"):
-                    if "logs" in data and verbose:
-                        print("\n[LOGS]")
-                        for l in data["logs"]:
-                            print(f"  > {resolve_source_map(l['message'], local_source_map, verbose=True)}")
-
-                    if "results" in output and output["results"]:
-                        print(f"\n[\"{test_file.stem}\"]:")
-                        for r in output["results"]:
-                            name = r.get("name", "Unknown")
-                            res_status = r.get("status", "Unknown")
-                            if res_status == "Success":
-                                status_str = f"{GREEN}[PASSED]{RESET}"
-                            elif res_status == "Failure":
-                                status_str = f"{RED}[FAILED]{RESET}"
-                            elif res_status == "Skipped":
-                                status_str = f"{YELLOW}[SKIPPED]{RESET}"
-                            else:
-                                status_str = f"[{res_status}]"
-                            print(f"\"{name}\": {status_str}")
-                            if res_status == "Failure" and "errors" in r:
-                                for e in r["errors"]:
-                                    resolved_e = resolve_source_map(e, local_source_map, verbose)
-                                    print(f"{RED}  Error: {resolved_e}{RESET}")
-                                    
-                    elif output.get("status") == "Success" and not has_suite_failure:
-                        print(f"\n{GREEN}[SUCCESS]{RESET} Test Suite Passed")
-                    else:
-                        print(f"\n{RED}[FAILED]{RESET} Test Suite")
-                        if has_suite_failure:
-                            print(f"   - {failure_count} test(s) failed")
-                        fails = output.get("failures", [])
-                        if fails:
-                            for f in fails:
-                                print(f"   - {resolve_source_map(f, local_source_map, verbose)}")
-                    
-                    print(f"[TIME] Completed in {elapsed:.2f}s")
-                
-                # --- COLLECT RESULTS ---
                 if "results" in output and output["results"]:
                     for r in output["results"]:
                         name = r.get("name", "Unknown")
                         res_status = r.get("status", "Unknown")
                         
-                        # Map status to standardized strings
                         status_map = {
                             "Success": "PASSED",
                             "Failure": "FAILED",
@@ -252,26 +182,15 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
                         traceback = ""
                         
                         if res_status == "Failure" and "errors" in r:
-                            # Combine multiple errors if present
-                            # resolve_source_map returns string with newlines if stack trace
                             raw_errors = r["errors"]
                             if raw_errors:
-                                # We'll take the first error as the main 'error' and 'traceback' 
-                                # or simple concatenation?
-                                # The user example shows "error" and "traceback" as separate fields.
-                                # Usually `resolve_source_map` gives us back a formatted string.
-                                # We might need to split it if we want separate fields, or just put it all in one.
-                                # User wanted: "error": "Expected...", "traceback": "file:line"
-                                
-                                # Let's parse the first resolved error
-                                resolved_e = resolve_source_map(raw_errors[0], local_source_map, verbose=False) # Get clean path
-                                
-                                # Try to split message and traceback if possible
-                                # resolve_source_map returns: "Message\n  Traceback:\n  at file:line"
+                                resolved_e = resolve_source_map(raw_errors[0], local_source_map, verbose=False)
                                 parts = resolved_e.split("\n  Traceback:\n")
                                 error_msg = parts[0]
+                                # Clean up redundant file path
+                                error_msg = re.sub(r"^.*?\.spec\.luau:\d+:\s*", "", error_msg)
+                                error_msg = re.sub(r"^Error:\s*", "", error_msg)
                                 if len(parts) > 1:
-                                    # Clean up "  at " prefix
                                     traceback = parts[1].replace("  at ", "").strip()
                         
                         test_results.append({
@@ -281,16 +200,12 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
                             "traceback": traceback
                         })
                 else:
-                    # Fallback if no detailed results (e.g. script error or suite level failure)
-                    # Use the 'failures' list from TestEZ
                     pass_suite = (output.get("status") == "Success" and not has_suite_failure)
                     if not pass_suite:
                         fails = output.get("failures", [])
                         msg = "Test Suite Failed"
                         if fails:
                              msg = "; ".join(fails)
-                        
-                        # If we have no individual tests but a suite failure, add a dummy fail
                         test_results.append({
                             "name": test_file.stem,
                             "status": "FAILED",
@@ -310,7 +225,7 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
                 resolved_msg = resolve_source_map(data.get('error', {}).get('message'), local_source_map, verbose)
                 
                 if not config.get("json"):
-                    print(f"\n{RED}[ERROR]{RESET} Execution failed after {elapsed:.2f}s")
+                    console.print(f"\n[red][ERROR][/red] Execution failed after {elapsed:.2f}s")
                     print(f"   - {resolved_msg}")
                     if "logs" in data:
                         for l in data["logs"]:
@@ -329,7 +244,7 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
                 
     except Exception as e:
         if not config.get("json"):
-             print(f"{RED}[ERROR]{RESET} Request Failed: {e}")
+             console.print(f"[red][ERROR][/red] Request Failed: {e}")
         return {
             "success": False,
             "results": [{
@@ -342,14 +257,175 @@ def run_test(test_file, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verb
         }
 
 
-def run_test_suite(args, files, bundle, tests_dir, config, source_map=None):
+def run_tests_batch(files, bundle, tests_dir, config, timeout=DEFAULT_TIMEOUT, verbose=False, source_map=None):
+    """Execute all test files in a single Roblox Cloud request (batch mode)"""
+    # Silent start - spinner handles status
+    start_time = time.time()
+    
+    api_url = get_api_url(config)
+    api_key = config["api_key"]
+    
+    driver, spec_offsets = get_master_driver(files, tests_dir)
+    full_payload = bundle + "\n" + driver
+    
+    local_source_map = list(source_map) if source_map else []
+    bundle_lines = bundle.count('\n') + 1
+    
+    for offset_info in spec_offsets:
+        abs_start = bundle_lines + offset_info["start"]
+        abs_end = bundle_lines + offset_info["end"]
+        local_source_map.append({
+            "file": str(offset_info["file"]),
+            "start": abs_start,
+            "end": abs_end,
+            "original_start": offset_info["original_start"]
+        })
+        
+    # console.print(f" * Running: {len(files)} test file(s) in batch mode ...")
+    
+    try:
+        resp = requests.post(
+            api_url,
+            headers={"x-api-key": api_key, "Content-Type": "application/json"},
+            json={"script": full_payload}
+        )
+        resp.raise_for_status()
+        task = resp.json()
+        task_id = task.get("path")
+        
+        elapsed = 0
+        while True:
+            time.sleep(1)
+            elapsed = time.time() - start_time
+            
+            if elapsed > timeout:
+                if not config.get("json"):
+                    console.print(f"\n[red][TIMEOUT][/red] Batch exceeded {elapsed:.1f}s (limit: {timeout}s)")
+                return {"success": False, "results": [], "duration": elapsed, "error": "Timeout"}
+            
+            if not config.get("json"):
+                pass
+                
+            try:
+                status_resp = requests.get(
+                    f"https://apis.roblox.com/cloud/v2/{task_id}",
+                    headers={"x-api-key": api_key}
+                )
+                status_resp.raise_for_status()
+                data = status_resp.json()
+                state = data.get("state")
+            except Exception as e:
+                return {"success": False, "results": [], "duration": elapsed, "error": str(e)}
+            
+            if state == "COMPLETE":
+                elapsed = time.time() - start_time
+                output = data.get("output", {}).get("results", [{}])[0] or data.get("returnValue", {})
+                
+                failure_count = output.get("failureCount", 0)
+                has_suite_failure = failure_count > 0
+                
+                if not config.get("json") and "logs" in data and verbose:
+                    print("\n[LOGS]")
+                    for l in data["logs"]:
+                         print(f"  > {resolve_source_map(l['message'], local_source_map, verbose=True)}")
 
-    """Execute a test suite"""
+                test_results = []
+                if "results" in output and output["results"]:
+                    for r in output["results"]:
+                        name = r.get("name", "Unknown")
+                        res_status = r.get("status", "Unknown")
+                        status_map = {"Success": "PASSED", "Failure": "FAILED", "Skipped": "SKIPPED"}
+                        final_status = status_map.get(res_status, res_status.upper())
+                        
+                        error_msg = ""
+                        traceback = ""
+                        if res_status == "Failure" and "errors" in r:
+                            raw_errors = r["errors"]
+                            if raw_errors:
+                                resolved_e = resolve_source_map(raw_errors[0], local_source_map, verbose=False)
+                                parts = resolved_e.split("\n  Traceback:\n")
+                                error_msg = parts[0]
+                                # Clean up redundant file path
+                                error_msg = re.sub(r"^.*?\.spec\.luau:\d+:\s*", "", error_msg)
+                                error_msg = re.sub(r"^Error:\s*", "", error_msg)
+                                if len(parts) > 1:
+                                    traceback = parts[1].replace("  at ", "").strip()
+                        
+                        test_results.append({
+                            "name": name,
+                            "status": final_status,
+                            "error": error_msg,
+                            "traceback": traceback
+                        })
+                else:
+                    if output.get("status") == "FAILED" or has_suite_failure:
+                         fails = output.get("failures", [])
+                         msg = "; ".join(fails) if fails else "Unknown Batch Logic Error"
+                         test_results.append({
+                             "name": "Batch Suite",
+                             "status": "FAILED",
+                             "error": msg,
+                             "traceback": ""
+                         })
+
+                success = not (output.get("status") in ("FAILED", "Failure") or has_suite_failure)
+                
+                # Since we can't reliably match test names to files, 
+                # count files based on test results:
+                # - If there are any FAILED tests, count as 1 file failed
+                # - If there are any PASSED tests (and none failed), count as 1 file passed  
+                # This is a simplification since batch mode combines all tests
+                has_passing = any(r.get("status") == "PASSED" for r in test_results)
+                has_failing = any(r.get("status") == "FAILED" for r in test_results)
+                
+                # For accurate file counts, we'd need TestEZ to report file source
+                # For now, estimate: if we have mixed results, assume some files pass and some fail
+                if has_failing and has_passing:
+                    # Mixed results - can't determine exact file ownership, make best guess
+                    # Use ratio of passed/failed tests to estimate file status
+                    failed_tests = sum(1 for r in test_results if r.get("status") == "FAILED")
+                    passed_tests = sum(1 for r in test_results if r.get("status") == "PASSED")
+                    total_tests = failed_tests + passed_tests
+                    
+                    # Rough estimate: files_failed = ceil(files * failed_ratio)
+                    if total_tests > 0:
+                        fail_ratio = failed_tests / total_tests
+                        estimated_failed = max(1, int(len(files) * fail_ratio + 0.5))
+                        files_failed_count = min(estimated_failed, len(files) - 1)
+                        files_passed_count = len(files) - files_failed_count
+                    else:
+                        files_failed_count = 0
+                        files_passed_count = len(files)
+                elif has_failing:
+                    files_failed_count = len(files)
+                    files_passed_count = 0
+                else:
+                    files_failed_count = 0
+                    files_passed_count = len(files)
+                
+                return {
+                    "success": success, 
+                    "results": test_results, 
+                    "duration": elapsed,
+                    "files_failed": files_failed_count,
+                    "files_passed": files_passed_count
+                }
+                
+            elif state == "FAILED":
+                elapsed = time.time() - start_time
+                resolved_msg = resolve_source_map(data.get('error', {}).get('message'), local_source_map, verbose)
+                return {"success": False, "results": [], "duration": elapsed, "error": resolved_msg}
+
+    except Exception as e:
+        return {"success": False, "results": [], "duration": 0, "error": str(e)}
+
+
+def run_test_suite(args, files, bundle, tests_dir, config, source_map=None, batch_mode=False):
+    """Execute a test suite (sequential or batch mode)"""
     import sys
     
     RESULTS_FILE = tests_dir / ".test-results"
 
-    # --failed: Filter tests based on previous run
     if hasattr(args, 'failed') and args.failed:
         if RESULTS_FILE.exists():
             try:
@@ -358,22 +434,21 @@ def run_test_suite(args, files, bundle, tests_dir, config, source_map=None):
                     failed_specs = set(prev_results.get("failures", []))
                 
                 if not failed_specs:
-                    print(f"{GREEN}[INFO]{RESET} No failed tests from last run.")
+                    console.print("[green][INFO][/green] No failed tests from last run.")
                     return 0
                 
                 original_count = len(files)
                 files = [f for f in files if f.stem in failed_specs]
-                print(f"{YELLOW}[INFO]{RESET} Re-running {len(files)} failed test(s) (out of {original_count})")
+                console.print(f"[yellow][INFO][/yellow] Re-running {len(files)} failed test(s) (out of {original_count})")
                 
                 if not files:
-                    print(f"{YELLOW}[WARN]{RESET} Failed tests from last run no longer exist.")
+                    console.print("[yellow][WARN][/yellow] Failed tests from last run no longer exist.")
                     return 0
             except Exception as e:
-                print(f"{YELLOW}[WARN]{RESET} Could not load previous results: {e}")
+                console.print(f"[yellow][WARN][/yellow] Could not load previous results: {e}")
         else:
-            print(f"{YELLOW}[WARN]{RESET} No previous test results found. Running all tests.")
+            console.print("[yellow][WARN][/yellow] No previous test results found. Running all tests.")
 
-    # Filter tests if specific name provided
     if args.test != "all":
         target = args.test.lower()
         found = None
@@ -385,64 +460,99 @@ def run_test_suite(args, files, bundle, tests_dir, config, source_map=None):
         if found:
             files = [found]
         else:
-            print(f"{RED}[ERROR]{RESET} No test found matching '{args.test}'")
+            console.print(f"[red][ERROR][/red] No test found matching '{args.test}'")
             return 1
     
     passed_count = 0
     failed_count = 0
     start_time = time.time()
-    
-    # Aggregated list of all test cases
     all_test_cases = []
     failed_files_set = set()
     
-    # Sequential execution
-    for f in files:
-        # Resolve timeout
-        to = args.timeout or config.get("timeout") or DEFAULT_TIMEOUT
+    config["json"] = args.json
+    to = args.timeout or config.get("timeout") or DEFAULT_TIMEOUT
+    
+    if batch_mode and len(files) > 1:
+        # Batch execution
+        if len(files) > 5:
+            to = max(to, 30)
         
-        # Inject json flag into config so run_test knows whether to print
-        config["json"] = args.json
-        
-        run_output = run_test(
-            f, bundle, tests_dir, config, 
-            timeout=to, 
+        run_output = run_tests_batch(
+            files, bundle, tests_dir, config,
+            timeout=to,
             verbose=args.verbose,
             source_map=source_map
         )
         
-        # Track failed files for --failed re-run capability
-        if not run_output["success"]:
-            failed_files_set.add(f.stem)
+        if run_output.get("error"):
+            if not args.json:
+                console.print(f"\n[red][ERROR][/red] {run_output['error']}")
         
-        # Collect individual test cases
-        if run_output["results"]:
-             all_test_cases.extend(run_output["results"])
-        
-        # Update counts based on individual tests
-        for t in run_output["results"]:
-            if t["status"] == "PASSED":
+        for r in run_output["results"]:
+            all_test_cases.append(r)
+            if r["status"] == "PASSED":
                 passed_count += 1
-            elif t["status"] == "FAILED":
+            elif r["status"] == "FAILED":
                 failed_count += 1
+                for f in files:
+                    failed_files_set.add(f.stem)
+    else:
+        # Sequential execution (original behavior)
+        for f in files:
+            run_output = run_test(
+                f, bundle, tests_dir, config, 
+                timeout=to, 
+                verbose=args.verbose,
+                source_map=source_map
+            )
+            
+            if not run_output["success"]:
+                failed_files_set.add(f.stem)
+            
+            if run_output["results"]:
+                 all_test_cases.extend(run_output["results"])
+                 # Minimalist printing for sequential mode
+                 if not args.json:
+                     for r in run_output["results"]:
+                         name = r["name"]
+                         status = r["status"]
+                         if status == "PASSED":
+                             console.print(f"[bold green]PASS[/bold green]  {name}")
+                         elif status == "FAILED":
+                             console.print(f"[bold red]FAIL[/bold red]  {name}")
+                             if r["error"]:
+                                 console.print(f"      {r['error']}")
+                             if r.get("traceback"):
+                                 for line in r["traceback"].split("\n"):
+                                     if line.strip():
+                                         clean_line = line.strip()
+                                         if not clean_line.startswith("at "):
+                                              console.print(f"      [dim]at {clean_line}[/dim]")
+                                         else:
+                                              console.print(f"      [dim]{clean_line}[/dim]")
+                         else:
+                             console.print(f"[bold yellow]SKIP[/bold yellow]  {name}")
+            
+            for t in run_output["results"]:
+                if t["status"] == "PASSED":
+                    passed_count += 1
+                elif t["status"] == "FAILED":
+                    failed_count += 1
             
     total_time = time.time() - start_time
     total = passed_count + failed_count
     skipped_count = sum(1 for t in all_test_cases if t["status"] == "SKIPPED")
     total += skipped_count
 
-    # Save results for --failed
     try:
         all_failures = failed_files_set
         
         if hasattr(args, 'failed') and args.failed and RESULTS_FILE.exists():
-             # We need to remove tests that PASSED this time from the previous list
              try:
                  with open(RESULTS_FILE, "r") as f:
                      prev = json.load(f)
                      prev_fails = set(prev.get("failures", []))
                  
-                 # Remove files that passed in this run
                  for f in files:
                      if f.stem in prev_fails and f.stem not in failed_files_set:
                          prev_fails.remove(f.stem)
@@ -451,17 +561,15 @@ def run_test_suite(args, files, bundle, tests_dir, config, source_map=None):
                          
                  all_failures = prev_fails
              except:
-                 pass # Fallback to just current run failures
+                 pass
         
         with open(RESULTS_FILE, "w") as f:
             json.dump({"failures": list(all_failures), "last_run": time.time()}, f)
             
     except Exception as e:
         if args.verbose:
-            print(f"{YELLOW}[WARN]{RESET} Could not save test results: {e}")
+            console.print(f"[yellow][WARN][/yellow] Could not save test results: {e}")
 
-    # Output results
-    
     if args.json:
         output = {
             "summary": {
@@ -474,10 +582,68 @@ def run_test_suite(args, files, bundle, tests_dir, config, source_map=None):
         }
         print(json.dumps(output, indent=2))
     else:
-        print("\n" + "="*50)
-        summary_color = GREEN if failed_count == 0 else RED
-        print(f"SUMMARY: {summary_color}{passed_count}/{total} passed{RESET}, {summary_color if failed_count > 0 else ''}{failed_count} failed{RESET}")
-        print(f"Total time: {total_time:.2f}s")
-        print("="*50)
+        if batch_mode and len(files) > 1:
+            console.print()
+            for r in all_test_cases:
+                name = r["name"]
+                status = r["status"]
+                if status == "PASSED":
+                    # PASS  test_name
+                    console.print(f"[bold green]PASS[/bold green]  {name}")
+                elif status == "FAILED":
+                    # FAIL  test_name
+                    console.print(f"[bold red]FAIL[/bold red]  {name}")
+                    if r["error"]:
+                        # Indented error without bullets
+                        console.print(f"      {r['error']}")
+                    if r.get("traceback"):
+                        # Indented traceback, simplified
+                        # console.print() # Compact
+                        for line in r["traceback"].split("\n"):
+                            if line.strip():
+                                clean_line = line.strip()
+                                # Format nicely if possible, or just print dim
+                                if not clean_line.startswith("at "):
+                                     console.print(f"      [dim]at {clean_line}[/dim]")
+                                else:
+                                     console.print(f"      [dim]{clean_line}[/dim]")
+                else:
+                    console.print(f"[bold yellow]SKIP[/bold yellow]  {name}")
+            
+            console.print()
+            console.print("-" * 60, style="dim")
+            
+            # Calculate file pass/fail based on return value
+            files_failed = run_output.get("files_failed", failed_count)
+            files_passed = run_output.get("files_passed", len(files) - files_failed)
+            
+            # Minimalist Summary
+            parts = []
+            if files_failed > 0:
+                parts.append(f"[red]{files_failed} failed[/red]")
+            parts.append(f"{files_passed} passed")
+            parts.append(f"{len(files)} total")
+            console.print(f"Test Files:  {', '.join(parts)}")
+            
+            parts = []
+            if failed_count > 0:
+                parts.append(f"[red]{failed_count} failed[/red]")
+            parts.append(f"{passed_count} passed")
+            parts.append(f"{total} total")
+            console.print(f"Tests:       {', '.join(parts)}")
+            
+            console.print(f"Time:        {total_time:.2f}s")
+        else:
+            console.print()
+            console.print("-" * 60, style="dim")
+            
+            parts = []
+            if failed_count > 0:
+                parts.append(f"[red]{failed_count} failed[/red]")
+            parts.append(f"{passed_count} passed")
+            parts.append(f"{total} total")
+            console.print(f"Tests:       {', '.join(parts)}")
+            
+            console.print(f"Time:        {total_time:.2f}s")
     
     return 1 if failed_count > 0 else 0
