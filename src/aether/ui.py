@@ -20,7 +20,7 @@ SPINNER_FRAMES = ["-", "\\", "|", "/"]
 class Dashboard:
     """Professional CLI dashboard for Aether watch mode"""
     
-    def __init__(self, version="0.2.4"):
+    def __init__(self, version="0.4.0"):
         self.version = version
         self.workspace = os.getcwd()
         self.rojo_project = "default.project.json"
