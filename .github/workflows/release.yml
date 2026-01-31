@@ -1,4 +1,5 @@
 name: Release
+run-name: Release on ${{ github.event.base_ref }} - ${{ github.event.head_commit.message }}
 
 on:
   push:
